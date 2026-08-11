@@ -11,18 +11,17 @@ filter is first because an id that was never in the database should not cost a c
 lookup either.
 
 ```mermaid
-flowchart TD
-    R["GET /api/shops/1"] --> B{"Bloom filter: id possible?"}
-    B -- "no" --> X["400 SHOP_NOT_FOUND, 0 queries"]
-    B -- "yes" --> L1{"Caffeine L1 hit?"}
-    L1 -- "yes" --> OK["Shop"]
-    L1 -- "no" --> L2{"Redis L2 hit?"}
-    L2 -- "yes" --> F1["Populate L1"]
-    F1 --> OK
-    L2 -- "no" --> DB[("MySQL")]
-    DB --> F2["Populate L1 and L2"]
-    F2 --> OK
+flowchart LR
+    B{"Bloom filter"} -- "absent" --> X["400, 0 queries"]
+    B -- "possible" --> L1{"Caffeine L1"}
+    L1 -- "hit" --> OK["Shop"]
+    L1 -- "miss" --> L2{"Redis L2"}
+    L2 -- "hit" --> OK
+    L2 -- "miss" --> DB[("MySQL")]
+    DB --> OK
 ```
+
+A hit below L1 backfills every tier above it on the way out.
 
 ## Keeping three L1 caches honest
 
@@ -33,12 +32,12 @@ transaction that had not committed yet.
 
 ```mermaid
 flowchart LR
-    W["PUT /api/shops/1 lands on app-1"] --> DB[("MySQL update")]
-    DB --> E["app-1 evicts its L1 and the shared L2"]
-    E --> P(["Redis channel: shop-cache-invalidate"])
-    E --> D["Second eviction after 500ms"]
-    P --> A2["app-2 invalidates its L1"]
-    P --> A3["app-3 invalidates its L1"]
+    W["PUT on app-1"] --> DB[("MySQL")]
+    DB --> E["app-1 evicts L1 + L2"]
+    E --> P(["Redis pub/sub"])
+    P --> A2["app-2 drops L1"]
+    P --> A3["app-3 drops L1"]
+    E -.-> D["evict again at 500ms"]
 ```
 
 Measured across all three instances after a write: 0 stale reads in 45 requests.
