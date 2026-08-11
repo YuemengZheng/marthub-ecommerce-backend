@@ -42,6 +42,25 @@ flowchart LR
 
 Measured across all three instances after a write: 0 stale reads in 45 requests.
 
+## Admission before order processing
+
+Two stages, both ahead of `OrderService`. The token is issued once per user per item
+and reused on retry, so refreshing does not drain the gate; the bucket is a Lua script
+in Redis, so three instances share one limit rather than three.
+
+```mermaid
+flowchart LR
+    O["POST order"] --> T{"Token valid?"}
+    T -- "no" --> R1["INVALID_TOKEN"]
+    T -- "yes" --> RL{"Token bucket"}
+    RL -- "limited" --> R2["RATE_LIMITED"]
+    RL -- "admitted" --> C["OrderService.create"]
+```
+
+50 invalid requests reached `OrderService` in the legacy shape and 0 here, at a cost
+of 0 incremental MySQL SELECTs instead of 150. A 100-request burst on a valid token
+admitted exactly the configured 20.
+
 ## What the code proves
 
 ### 1) Hot read path: Caffeine L1 + Redis L2 + Bloom filter + delayed invalidation
