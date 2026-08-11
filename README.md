@@ -1,6 +1,47 @@
 # MartHub — High-Concurrency E-Commerce Backend
 
+[![ci](https://github.com/YuemengZheng/marthub-ecommerce-backend/actions/workflows/ci.yml/badge.svg)](https://github.com/YuemengZheng/marthub-ecommerce-backend/actions/workflows/ci.yml)
+
 A compact Spring Boot implementation of three backend mechanisms, each with a measurement to go with it: multi-level caching, pre-order traffic gating, and Redis-backed distributed sessions.
+
+## The read path
+
+Every tier exists to stop a request before it reaches the one below it. The Bloom
+filter is first because an id that was never in the database should not cost a cache
+lookup either.
+
+```mermaid
+flowchart TD
+    R["GET /api/shops/1"] --> B{"Bloom filter: id possible?"}
+    B -- "no" --> X["400 SHOP_NOT_FOUND, 0 queries"]
+    B -- "yes" --> L1{"Caffeine L1 hit?"}
+    L1 -- "yes" --> OK["Shop"]
+    L1 -- "no" --> L2{"Redis L2 hit?"}
+    L2 -- "yes" --> F1["Populate L1"]
+    F1 --> OK
+    L2 -- "no" --> DB[("MySQL")]
+    DB --> F2["Populate L1 and L2"]
+    F2 --> OK
+```
+
+## Keeping three L1 caches honest
+
+Caffeine is per-process, so a write on one instance leaves the other two holding a
+stale shop until their TTL expires. Redis pub/sub closes that gap, and a second
+eviction fires shortly after to catch a read that repopulated the cache from a
+transaction that had not committed yet.
+
+```mermaid
+flowchart LR
+    W["PUT /api/shops/1 lands on app-1"] --> DB[("MySQL update")]
+    DB --> E["app-1 evicts its L1 and the shared L2"]
+    E --> P(["Redis channel: shop-cache-invalidate"])
+    E --> D["Second eviction after 500ms"]
+    P --> A2["app-2 invalidates its L1"]
+    P --> A3["app-3 invalidates its L1"]
+```
+
+Measured across all three instances after a write: 0 stale reads in 45 requests.
 
 ## What the code proves
 
