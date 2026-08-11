@@ -1,0 +1,46 @@
+server:
+  port: ${SERVER_PORT:8080}
+
+spring:
+  datasource:
+    url: jdbc:mysql://${DB_HOST:localhost}:${DB_PORT:3306}/${DB_NAME:marthub}?useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=UTC
+    username: ${DB_USER:marthub}
+    password: ${DB_PASSWORD:marthub}
+    hikari:
+      maximum-pool-size: 20
+      minimum-idle: 2
+  data:
+    redis:
+      host: ${REDIS_HOST:localhost}
+      port: ${REDIS_PORT:6379}
+      timeout: 2s
+  sql:
+    init:
+      mode: always
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info
+  endpoint:
+    health:
+      probes:
+        enabled: true
+
+marthub:
+  instance-id: ${INSTANCE_ID:local}
+  auth:
+    ttl-minutes: 30
+  cache:
+    l1-max-size: 10000
+    l1-ttl-seconds: 300
+    l2-ttl-seconds: 600
+    delayed-eviction-ms: 500
+  flash-sale:
+    token-ttl-seconds: 300
+    gate-multiplier: 5
+    rate-per-second: ${FLASH_RATE_PER_SECOND:200}
+    burst-capacity: ${FLASH_BURST_CAPACITY:200}
+  benchmark:
+    enabled: ${BENCHMARK_ENABLED:false}
