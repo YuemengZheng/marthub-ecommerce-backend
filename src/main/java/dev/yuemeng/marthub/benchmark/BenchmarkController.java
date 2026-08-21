@@ -6,6 +6,8 @@ import dev.yuemeng.marthub.flashsale.FlashSaleMetrics;
 import dev.yuemeng.marthub.flashsale.FlashSaleService;
 import dev.yuemeng.marthub.flashsale.OrderService;
 import dev.yuemeng.marthub.flashsale.RedisRateLimiter;
+import com.github.benmanes.caffeine.cache.Cache;
+import com.github.benmanes.caffeine.cache.stats.CacheStats;
 import dev.yuemeng.marthub.shop.Shop;
 import dev.yuemeng.marthub.shop.ShopService;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
@@ -30,14 +32,32 @@ public class BenchmarkController {
     private final OrderService orders;
     private final FlashSaleService flashSales;
     private final RedisRateLimiter limiter;
+    private final Cache<Long, Shop> l1;
 
     public BenchmarkController(ShopService shops, FlashSaleMetrics metrics,
-                               OrderService orders, FlashSaleService flashSales, RedisRateLimiter limiter) {
+                               OrderService orders, FlashSaleService flashSales, RedisRateLimiter limiter,
+                               Cache<Long, Shop> l1) {
+        this.l1 = l1;
         this.shops = shops;
         this.metrics = metrics;
         this.orders = orders;
         this.flashSales = flashSales;
         this.limiter = limiter;
+    }
+
+    /**
+     * Caffeine's own counters. An L1 hit is a request that never reached Redis, so
+     * this is also the measurement of how much Redis traffic the local tier absorbs.
+     * Per-process, so read it from one instance rather than through the load balancer.
+     */
+    @GetMapping("/cache/l1-stats")
+    public Map<String, Object> l1Stats() {
+        CacheStats st = l1.stats();
+        return Map.of(
+                "hitCount", st.hitCount(),
+                "missCount", st.missCount(),
+                "hitRate", st.hitRate(),
+                "estimatedSize", l1.estimatedSize());
     }
 
     @GetMapping("/shop/{id}/db")

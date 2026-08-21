@@ -144,8 +144,16 @@ them on for the local stack only. Do not enable them anywhere reachable.
 ```bash
 python3 benchmarks/benchmark.py
 python3 benchmarks/db_load.py
-cat benchmarks/results.json benchmarks/db_load_results.json
+MARTHUB_INSTANCE_URLS=http://localhost:8081,http://localhost:8082,http://localhost:8083 \
+  python3 benchmarks/cache_profile.py
+cat benchmarks/*_results.json
 ```
+
+`cache_profile.py` is the one to read if you want a cache hit rate. It drives 20,000
+Zipf-distributed reads over 10,000 shops and controls its own starting state, so the
+number comes with a stated key distribution and a stated warm-up: **82.6% fewer MySQL
+reads cold, 89.6% L1 hit rate warm, and a restart of all three instances costs the
+database nothing.** Full table in `TEST_STATUS.md`.
 
 `benchmark.py` measures:
 1. DB-only p95 vs warmed multi-level-cache p95.
