@@ -136,10 +136,14 @@ class ShopServiceTest {
         ArgumentCaptor<Runnable> delayed = ArgumentCaptor.forClass(Runnable.class);
         verify(scheduler).schedule(delayed.capture(), any(Instant.class));
 
-        // The delayed eviction is what closes the read-repopulates-a-stale-value window.
+        // The delayed eviction is what closes the read-repopulates-a-stale-value window,
+        // and it has to tell the other instances too -- their L1 can have been refilled
+        // with the pre-commit value in the meantime, so a local-only second eviction
+        // would leave them stale.
         clearInvocations(l1, redis);
         delayed.getValue().run();
         verify(l1).invalidate(1L);
         verify(redis).delete("shop:1");
+        verify(redis).convertAndSend(CacheInvalidationListener.CHANNEL, "1");
     }
 }

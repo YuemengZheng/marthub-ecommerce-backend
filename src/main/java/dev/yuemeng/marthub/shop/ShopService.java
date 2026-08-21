@@ -43,6 +43,20 @@ public class ShopService {
         return shop;
     }
     public Shop getDbOnly(long id) { return repo.findById(id).orElseThrow(() -> new BadRequestException("SHOP_NOT_FOUND","shop not found")); }
+    /**
+     * Write, then evict twice.
+     *
+     * <p>The first eviction runs inside this transaction, so it lands <em>before</em> the
+     * commit. That leaves a window: a concurrent read can miss both tiers, load the row
+     * the transaction has not committed yet, and write that stale value back into L1 and
+     * L2. The second eviction, after the commit has had time to land, is what clears it.
+     * This is not the textbook delayed double delete -- there is no pre-delete before the
+     * write -- and the delay is here for the transaction boundary specifically.
+     *
+     * <p>Both evictions publish, because the stale refill can have happened on any
+     * instance, not just this one. Known limit: the delayed task lives in this process's
+     * scheduler, so if the process dies inside the delay the second eviction is lost.
+     */
     @Transactional
     public void update(Shop shop) {
         repo.update(shop);
