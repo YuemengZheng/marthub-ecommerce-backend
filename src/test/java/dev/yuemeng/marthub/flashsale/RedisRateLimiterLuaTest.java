@@ -1,6 +1,7 @@
 package dev.yuemeng.marthub.flashsale;
 
 import dev.yuemeng.marthub.config.MartHubProperties;
+import dev.yuemeng.marthub.support.RedisTestSupport;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.condition.EnabledIf;
@@ -20,7 +21,7 @@ import static org.junit.jupiter.api.Assertions.*;
  * point is that read-modify-write happens inside Redis, under contention, across
  * callers that never coordinate. This runs it against a real Redis.
  */
-@EnabledIf("dev.yuemeng.marthub.flashsale.RedisTestSupport#redisAvailable")
+@EnabledIf("dev.yuemeng.marthub.support.RedisTestSupport#redisAvailable")
 class RedisRateLimiterLuaTest {
 
     private StringRedisTemplate redis;

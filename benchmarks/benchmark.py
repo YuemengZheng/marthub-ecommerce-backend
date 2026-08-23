@@ -51,14 +51,16 @@ def run_parallel_varied(method, path, header_list, workers):
 
 
 def auth_token(user_id=2, name='LoadTest'):
-    _, s, b, _ = request('POST', f'/api/auth/demo-login?userId={user_id}&name={name}')
+    _, s, b, hs = request('POST', f'/api/auth/demo-login?userId={user_id}&name={name}')
     if s != 200:
         raise RuntimeError((s, b))
-    return json.loads(b)['token']
+    # Spring Session hands the session id back in X-Auth-Token under
+    # HeaderHttpSessionIdResolver; it is not a field in the body.
+    return hs['X-Auth-Token']
 
 
 def eligibility_token(auth, item_id=101):
-    headers = {'Authorization': 'Bearer ' + auth}
+    headers = {'X-Auth-Token': auth}
     _, s, b, _ = request('POST', f'/api/flash-sale/{item_id}/eligibility', headers)
     if s != 200:
         raise RuntimeError((s, b))
@@ -89,7 +91,7 @@ def invalid_pipeline_benchmark():
     request('POST', '/internal/benchmark/metrics/reset')
     auth = auth_token()
     headers = {
-        'Authorization': 'Bearer ' + auth,
+        'X-Auth-Token': auth,
         'X-Eligibility-Token': 'definitely-invalid',
     }
     opt_lat, _ = run_parallel(
@@ -166,7 +168,7 @@ def rate_limiter_benchmark():
     for uid in range(1000, 1100):
         auth = auth_token(user_id=uid, name='Crowd' + str(uid))
         crowd_headers.append({
-            'Authorization': 'Bearer ' + auth,
+            'X-Auth-Token': auth,
             'X-Eligibility-Token': eligibility_token(auth),
         })
     request('POST', '/internal/benchmark/flash-sale/rate/reset?itemId=101')
@@ -174,7 +176,7 @@ def rate_limiter_benchmark():
 
     solo_auth = auth_token(user_id=2, name='RateLimitTest')
     solo_headers = {
-        'Authorization': 'Bearer ' + solo_auth,
+        'X-Auth-Token': solo_auth,
         'X-Eligibility-Token': eligibility_token(solo_auth),
     }
     request('POST', '/internal/benchmark/flash-sale/rate/reset?itemId=101&userId=2')
@@ -188,7 +190,7 @@ def rate_limiter_benchmark():
 
 def three_instance_auth_check():
     auth = auth_token()
-    headers = {'Authorization': 'Bearer ' + auth}
+    headers = {'X-Auth-Token': auth}
     instances = set()
     statuses = []
     for _ in range(60):

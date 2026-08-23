@@ -1,4 +1,4 @@
-package dev.yuemeng.marthub.flashsale;
+package dev.yuemeng.marthub.support;
 
 import org.springframework.data.redis.connection.RedisStandaloneConfiguration;
 import org.springframework.data.redis.connection.lettuce.LettuceConnectionFactory;
@@ -21,19 +21,19 @@ import java.net.Socket;
  * reachable the tests skip rather than fail, so a plain {@code mvn test} on a machine
  * without Redis still passes — the skip is visible in the surefire output.
  */
-final class RedisTestSupport {
+public final class RedisTestSupport {
 
     private RedisTestSupport() {}
 
-    static String host() {
+    public static String host() {
         return endpoint()[0];
     }
 
-    static int port() {
+    public static int port() {
         return Integer.parseInt(endpoint()[1]);
     }
 
-    static boolean redisAvailable() {
+    public static boolean redisAvailable() {
         try (Socket socket = new Socket()) {
             socket.connect(new InetSocketAddress(host(), port()), 500);
             return true;
@@ -42,7 +42,7 @@ final class RedisTestSupport {
         }
     }
 
-    static StringRedisTemplate connect() {
+    public static StringRedisTemplate connect() {
         LettuceConnectionFactory factory =
                 new LettuceConnectionFactory(new RedisStandaloneConfiguration(host(), port()));
         factory.afterPropertiesSet();

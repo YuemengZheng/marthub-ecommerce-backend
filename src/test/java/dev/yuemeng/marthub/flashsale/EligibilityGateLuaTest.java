@@ -3,6 +3,7 @@ package dev.yuemeng.marthub.flashsale;
 import dev.yuemeng.marthub.auth.SessionUser;
 import dev.yuemeng.marthub.common.BadRequestException;
 import dev.yuemeng.marthub.config.MartHubProperties;
+import dev.yuemeng.marthub.support.RedisTestSupport;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.condition.EnabledIf;
@@ -26,7 +27,7 @@ import static org.mockito.Mockito.*;
  * That is enforced by an atomic Lua script, so it is tested against a real Redis with
  * real concurrency — under a mock, "atomic" is just a comment.
  */
-@EnabledIf("dev.yuemeng.marthub.flashsale.RedisTestSupport#redisAvailable")
+@EnabledIf("dev.yuemeng.marthub.support.RedisTestSupport#redisAvailable")
 class EligibilityGateLuaTest {
 
     private static final long ITEM = 101L;

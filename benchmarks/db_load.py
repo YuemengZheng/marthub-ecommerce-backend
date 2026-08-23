@@ -35,9 +35,9 @@ def hit(path, method='GET', headers=None):
     req = urllib.request.Request(BASE + path, method=method, headers=headers or {})
     try:
         with urllib.request.urlopen(req, timeout=30) as r:
-            return r.status, r.read()
+            return r.status, r.read(), dict(r.headers)
     except urllib.error.HTTPError as e:
-        return e.code, e.read()
+        return e.code, e.read(), dict(e.headers)
 
 
 def burst(path, n, workers, method='GET', headers=None):
@@ -87,8 +87,9 @@ def main():
             and hit('/internal/benchmark/metrics')[1])['orderProcessorEntries']}))
 
     # Flash sale, optimized: same traffic, rejected before the order boundary.
-    token = json.loads(hit('/api/auth/demo-login?userId=2&name=LoadTest', 'POST')[1])['token']
-    headers = {'Authorization': 'Bearer ' + token, 'X-Eligibility-Token': 'definitely-invalid'}
+    # Spring Session returns the session id in the X-Auth-Token response header.
+    token = hit('/api/auth/demo-login?userId=2&name=LoadTest', 'POST')[2]['X-Auth-Token']
+    headers = {'X-Auth-Token': token, 'X-Eligibility-Token': 'definitely-invalid'}
     hit('/internal/benchmark/metrics/reset', 'POST')
     rows.append(measure('flashsale_optimized_invalid', lambda: {
         'requests': 50,

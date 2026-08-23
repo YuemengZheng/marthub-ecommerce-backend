@@ -1,7 +1,7 @@
 package dev.yuemeng.marthub.benchmark;
 
 import dev.yuemeng.marthub.auth.SessionUser;
-import dev.yuemeng.marthub.auth.UserContext;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import dev.yuemeng.marthub.flashsale.FlashSaleMetrics;
 import dev.yuemeng.marthub.flashsale.FlashSaleService;
 import dev.yuemeng.marthub.flashsale.OrderService;
@@ -89,8 +89,10 @@ public class BenchmarkController {
 
     @PostMapping("/flash-sale/admission")
     public ResponseEntity<Void> admission(@RequestParam long itemId,
-                                          @RequestHeader("X-Eligibility-Token") String token) {
-        SessionUser user = UserContext.get();
+                                          @RequestHeader("X-Eligibility-Token") String token,
+                                          @AuthenticationPrincipal SessionUser user) {
+        // These routes are permitAll so the harness can reset counters without a session, but
+        // admission still needs a caller: the point of the measurement is the real admission path.
         if (user == null) return ResponseEntity.status(401).build();
         flashSales.benchmarkAdmission(itemId, user, token);
         return ResponseEntity.noContent().build();

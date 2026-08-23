@@ -50,12 +50,12 @@ def request(method, path, headers=None):
     t = time.perf_counter()
     try:
         with urllib.request.urlopen(req, timeout=60) as r:
-            body, status = r.read(), r.status
+            body, status, hs = r.read(), r.status, dict(r.headers)
     except urllib.error.HTTPError as e:
-        body, status = e.read(), e.code
+        body, status, hs = e.read(), e.code, dict(e.headers)
     except Exception as e:
-        return (time.perf_counter() - t) * 1000, 0, str(e).encode()
-    return (time.perf_counter() - t) * 1000, status, body
+        return (time.perf_counter() - t) * 1000, 0, str(e).encode(), {}
+    return (time.perf_counter() - t) * 1000, status, body, hs
 
 
 def p95(xs):
@@ -100,15 +100,16 @@ def reset_rate_buckets():
 
 
 def auth_token(user_id, name):
-    _, s, b = request('POST', f'/api/auth/demo-login?userId={user_id}&name={name}')
+    _, s, b, hs = request('POST', f'/api/auth/demo-login?userId={user_id}&name={name}')
     if s != 200:
         raise RuntimeError(f'login {user_id}: {s} {b[:120]}')
-    return json.loads(b)['token']
+    # Spring Session returns the session id in X-Auth-Token, not in the body.
+    return hs['X-Auth-Token']
 
 
 def eligibility_token(auth):
-    _, s, b = request('POST', f'/api/flash-sale/{ITEM_ID}/eligibility',
-                      {'Authorization': 'Bearer ' + auth})
+    _, s, b, _ = request('POST', f'/api/flash-sale/{ITEM_ID}/eligibility',
+                         {'X-Auth-Token': auth})
     if s != 200:
         raise RuntimeError(f'eligibility: {s} {b[:120]}')
     return json.loads(b)['token']
@@ -120,7 +121,7 @@ def build_headers(first_user_id):
         uid = first_user_id + i
         auth = auth_token(uid, f'Burst{uid}')
         token = 'never-issued' if i % 10 < INVALID_FRACTION * 10 else eligibility_token(auth)
-        return {'Authorization': 'Bearer ' + auth, 'X-Eligibility-Token': token}
+        return {'X-Auth-Token': auth, 'X-Eligibility-Token': token}
     with concurrent.futures.ThreadPoolExecutor(max_workers=50) as ex:
         return list(ex.map(one, range(USER_POOL)))
 
@@ -138,7 +139,7 @@ def fire(path, headers_for_request, n, needs_headers):
 def classify(rows):
     out = {'invalid_token_rejections': 0, 'rate_limited': 0, 'admitted': 0,
            'rejected_after_db_work': 0, 'transport_errors': 0, 'other': {}}
-    for _, status, body in rows:
+    for _, status, body, _ in rows:
         if status == 0:
             out['transport_errors'] += 1
             continue

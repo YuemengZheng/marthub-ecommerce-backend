@@ -15,7 +15,16 @@ public class MartHubProperties {
     public Cache getCache() { return cache; }
     public FlashSale getFlashSale() { return flashSale; }
     public Benchmark getBenchmark() { return benchmark; }
-    public static class Auth { private long ttlMinutes=30; public long getTtlMinutes(){return ttlMinutes;} public void setTtlMinutes(long v){ttlMinutes=v;} }
+    /**
+     * Idle timeout is not here -- it is Spring Session's {@code spring.session.timeout}. This is
+     * the one session policy the framework does not provide: the hard ceiling past which an active
+     * session must re-authenticate anyway.
+     */
+    public static class Auth {
+        private java.time.Duration absoluteLifetime=java.time.Duration.ofHours(12);
+        public java.time.Duration getAbsoluteLifetime(){return absoluteLifetime;}
+        public void setAbsoluteLifetime(java.time.Duration v){absoluteLifetime=v;}
+    }
     public static class Cache {
         // l1TtlSeconds is deliberately short: cross-instance L1 invalidation rides on Redis
         // pub/sub, which is fire-and-forget, so TTL -- not the broadcast -- is what bounds how

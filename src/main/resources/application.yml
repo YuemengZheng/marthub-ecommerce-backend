@@ -2,6 +2,9 @@ server:
   port: ${SERVER_PORT:8080}
 
 spring:
+  session:
+    # Idle timeout: Spring Session expires a session this long after its last access.
+    timeout: 30m
   datasource:
     url: jdbc:mysql://${DB_HOST:localhost}:${DB_PORT:3306}/${DB_NAME:marthub}?useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=UTC
     username: ${DB_USER:marthub}
@@ -31,7 +34,8 @@ management:
 marthub:
   instance-id: ${INSTANCE_ID:local}
   auth:
-    ttl-minutes: 30
+    # Idle timeout is spring.session.timeout below; this is the hard ceiling on top of it.
+    absolute-lifetime: 12h
   cache:
     l1-max-size: 10000
     # Short on purpose: cross-instance L1 invalidation rides on Redis pub/sub, which is
