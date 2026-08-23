@@ -1,0 +1,141 @@
+{
+  "measured_at_utc": "2026-08-23T01:30:50Z",
+  "base_url": "http://localhost:8390",
+  "workload": {
+    "levels": [
+      1000,
+      5000,
+      10000
+    ],
+    "concurrency": 200,
+    "invalid_fraction": 0.3,
+    "distinct_callers": 500,
+    "note": "a fresh user id range per level, so no bucket carries state across levels"
+  },
+  "limiter_config": {
+    "source": "FLASH_RATE_PER_SECOND / FLASH_BURST_CAPACITY on the app containers",
+    "item_rate_per_second": "200",
+    "item_burst_capacity": "200",
+    "user_rate_per_second": "5",
+    "user_burst_capacity": "5"
+  },
+  "levels": [
+    {
+      "offered_requests": 1000,
+      "baseline_no_gate": {
+        "mysql_selects": 3001,
+        "selects_per_delivered_request": 3.0,
+        "max_used_connections_high_water": 61,
+        "order_processor_entries": 1000,
+        "wall_seconds": 0.23,
+        "offered_rps": 4417.5,
+        "p95_ms": 52.31,
+        "delivered": 1000,
+        "invalid_token_rejections": 0,
+        "rate_limited": 0,
+        "admitted": 0,
+        "rejected_after_db_work": 1000,
+        "transport_errors": 0,
+        "other": {}
+      },
+      "gated": {
+        "mysql_selects": 1,
+        "selects_per_delivered_request": 0.0,
+        "max_used_connections_high_water": 61,
+        "order_processor_entries": 249,
+        "wall_seconds": 0.25,
+        "offered_rps": 3960.5,
+        "p95_ms": 54.73,
+        "delivered": 1000,
+        "invalid_token_rejections": 300,
+        "rate_limited": 451,
+        "admitted": 249,
+        "rejected_after_db_work": 0,
+        "transport_errors": 0,
+        "other": {}
+      },
+      "selects_per_order_attempt": 3,
+      "projected_gated_selects_if_admitted_orders_run": 747,
+      "projected_mysql_select_reduction_pct": 75.11,
+      "measured_mysql_select_reduction_pct_admission_only": 99.97
+    },
+    {
+      "offered_requests": 5000,
+      "baseline_no_gate": {
+        "mysql_selects": 15001,
+        "selects_per_delivered_request": 3.0,
+        "max_used_connections_high_water": 61,
+        "order_processor_entries": 5000,
+        "wall_seconds": 1.21,
+        "offered_rps": 4136.9,
+        "p95_ms": 66.02,
+        "delivered": 5000,
+        "invalid_token_rejections": 0,
+        "rate_limited": 0,
+        "admitted": 0,
+        "rejected_after_db_work": 5000,
+        "transport_errors": 0,
+        "other": {}
+      },
+      "gated": {
+        "mysql_selects": 1,
+        "selects_per_delivered_request": 0.0,
+        "max_used_connections_high_water": 61,
+        "order_processor_entries": 467,
+        "wall_seconds": 1.34,
+        "offered_rps": 3720.2,
+        "p95_ms": 63.6,
+        "delivered": 5000,
+        "invalid_token_rejections": 1500,
+        "rate_limited": 3033,
+        "admitted": 467,
+        "rejected_after_db_work": 0,
+        "transport_errors": 0,
+        "other": {}
+      },
+      "selects_per_order_attempt": 3,
+      "projected_gated_selects_if_admitted_orders_run": 1401,
+      "projected_mysql_select_reduction_pct": 90.66,
+      "measured_mysql_select_reduction_pct_admission_only": 99.99
+    },
+    {
+      "offered_requests": 10000,
+      "baseline_no_gate": {
+        "mysql_selects": 30001,
+        "selects_per_delivered_request": 3.0,
+        "max_used_connections_high_water": 61,
+        "order_processor_entries": 10000,
+        "wall_seconds": 2.55,
+        "offered_rps": 3922.8,
+        "p95_ms": 73.49,
+        "delivered": 10000,
+        "invalid_token_rejections": 0,
+        "rate_limited": 0,
+        "admitted": 0,
+        "rejected_after_db_work": 10000,
+        "transport_errors": 0,
+        "other": {}
+      },
+      "gated": {
+        "mysql_selects": 1,
+        "selects_per_delivered_request": 0.0,
+        "max_used_connections_high_water": 62,
+        "order_processor_entries": 721,
+        "wall_seconds": 2.61,
+        "offered_rps": 3827.1,
+        "p95_ms": 71.07,
+        "delivered": 10000,
+        "invalid_token_rejections": 3000,
+        "rate_limited": 6279,
+        "admitted": 721,
+        "rejected_after_db_work": 0,
+        "transport_errors": 0,
+        "other": {}
+      },
+      "selects_per_order_attempt": 3,
+      "projected_gated_selects_if_admitted_orders_run": 2163,
+      "projected_mysql_select_reduction_pct": 92.79,
+      "measured_mysql_select_reduction_pct_admission_only": 100.0
+    }
+  ]
+}
