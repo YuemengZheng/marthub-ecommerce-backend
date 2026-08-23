@@ -81,8 +81,9 @@ public class BenchmarkController {
     }
 
     @PostMapping("/flash-sale/rate/reset")
-    public void resetRate(@RequestParam long itemId) {
+    public void resetRate(@RequestParam long itemId, @RequestParam(required = false) Long userId) {
         limiter.reset(itemId);
+        if (userId != null) limiter.resetUser(itemId, userId);
         metrics.reset();
     }
 

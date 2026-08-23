@@ -38,10 +38,25 @@ public class FlashSaleService {
         metrics.enteredOrderProcessor();
     }
 
+    /**
+     * Three gates, cheapest and narrowest first.
+     *
+     * <p>The per-user bucket comes before the per-item one on purpose: a rejection there must not
+     * spend a token from the bucket everyone shares. Without that ordering one caller retrying a
+     * sold-out item -- its token stays valid, because markBought only runs after a successful
+     * order -- would consume the item's whole allowance and starve every other user.
+     *
+     * <p>Both limits report the same {@code RATE_LIMITED} code. Which bucket refused is an
+     * operational detail, not something a client can act on differently.
+     */
     private void admit(long itemId, SessionUser user, String token) {
         if (!eligibility.valid(itemId, user.id(), token)) {
             metrics.rejectedBeforeOrder();
             throw new BadRequestException("INVALID_TOKEN", "invalid eligibility token");
+        }
+        if (!limiter.allowUser(itemId, user.id())) {
+            metrics.rejectedBeforeOrder();
+            throw new BadRequestException("RATE_LIMITED", "per-user rate limit exceeded");
         }
         if (!limiter.allow(itemId)) {
             metrics.rejectedBeforeOrder();
