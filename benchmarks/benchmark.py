@@ -43,6 +43,13 @@ def run_parallel(method, path, n=200, workers=32, headers=None):
     return [r[0] for r in rows], rows
 
 
+def run_parallel_varied(method, path, header_list, workers):
+    """Like run_parallel, but every request carries its own headers -- one per caller."""
+    with concurrent.futures.ThreadPoolExecutor(max_workers=workers) as ex:
+        rows = list(ex.map(lambda h: request(method, path, h), header_list))
+    return [r[0] for r in rows], rows
+
+
 def auth_token(user_id=2, name='LoadTest'):
     _, s, b, _ = request('POST', f'/api/auth/demo-login?userId={user_id}&name={name}')
     if s != 200:
@@ -109,22 +116,10 @@ def eligibility_token_reuse_check():
     }
 
 
-def rate_limiter_benchmark():
-    """Use a valid token so rejection can only come from the Redis rate limiter."""
-    auth = auth_token(user_id=2, name='RateLimitTest')
-    token = eligibility_token(auth)
-    headers = {
-        'Authorization': 'Bearer ' + auth,
-        'X-Eligibility-Token': token,
-    }
-    request('POST', '/internal/benchmark/flash-sale/rate/reset?itemId=101', headers)
-
-    latencies, rows = run_parallel(
-        'POST', '/internal/benchmark/flash-sale/admission?itemId=101',
-        n=100,
-        workers=100,
-        headers=headers,
-    )
+def _admission_burst(header_list, workers):
+    """Fire one burst at the admission boundary and classify what came back."""
+    admission = '/internal/benchmark/flash-sale/admission?itemId=101'
+    latencies, rows = run_parallel_varied('POST', admission, header_list, workers)
     allowed = sum(1 for _, status, _, _ in rows if status == 204)
     rejected = 0
     unexpected = []
@@ -144,14 +139,50 @@ def rate_limiter_benchmark():
     _, _, b, _ = request('GET', '/internal/benchmark/metrics')
     m = json.loads(b)
     return {
-        'requests': 100,
-        'workers': 100,
+        'requests': len(header_list),
+        'workers': workers,
         'allowed_to_order_boundary': allowed,
         'rate_limited_before_order': rejected,
         'order_processor_entries': m['orderProcessorEntries'],
         'pre_order_rejections': m['preOrderRejections'],
         'p95_ms': round(p95(latencies), 2),
         'unexpected_responses': unexpected[:5],
+    }
+
+
+def rate_limiter_benchmark():
+    """Two bursts, because there are two buckets and only one of them shields the database.
+
+    100 requests spread across 100 users is the crowd the per-item bucket exists for. The same
+    100 requests from a single user is the abuse the per-user bucket exists for. Running only
+    the single-user case -- all this did before the per-user layer -- measures the narrower
+    limit and reports it as the item limit.
+
+    Both bursts use valid tokens, so a rejection can only have come from a limiter, and both
+    reset the item bucket first: after the crowd burst it is empty, and a solo user refused by
+    a drained item bucket would say nothing about their own.
+    """
+    crowd_headers = []
+    for uid in range(1000, 1100):
+        auth = auth_token(user_id=uid, name='Crowd' + str(uid))
+        crowd_headers.append({
+            'Authorization': 'Bearer ' + auth,
+            'X-Eligibility-Token': eligibility_token(auth),
+        })
+    request('POST', '/internal/benchmark/flash-sale/rate/reset?itemId=101')
+    per_item = _admission_burst(crowd_headers, workers=100)
+
+    solo_auth = auth_token(user_id=2, name='RateLimitTest')
+    solo_headers = {
+        'Authorization': 'Bearer ' + solo_auth,
+        'X-Eligibility-Token': eligibility_token(solo_auth),
+    }
+    request('POST', '/internal/benchmark/flash-sale/rate/reset?itemId=101&userId=2')
+    per_user = _admission_burst([solo_headers] * 100, workers=100)
+
+    return {
+        'per_item_bucket_many_users': per_item,
+        'per_user_bucket_one_user': per_user,
     }
 
 

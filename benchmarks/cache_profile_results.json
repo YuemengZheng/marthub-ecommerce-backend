@@ -1,10 +1,10 @@
 {
-  "measured_at_utc": "2026-08-21T05:07:17Z",
-  "base_url": "http://localhost:8090",
+  "measured_at_utc": "2026-08-23T01:21:23Z",
+  "base_url": "http://localhost:8390",
   "instances_polled": [
-    "http://localhost:8091",
-    "http://localhost:8092",
-    "http://localhost:8093"
+    "http://localhost:8391",
+    "http://localhost:8392",
+    "http://localhost:8393"
   ],
   "workload": {
     "shops_in_table": 10000,
@@ -40,60 +40,60 @@
       "requests": 20000,
       "distinct_keys_requested": 3464,
       "mysql_selects": 20039,
-      "redis_commands": 4,
+      "redis_commands": 3,
       "l1_hits": 0,
       "l1_misses": 0,
       "non_200": [],
       "served_by_l2": 0,
       "db_reads_per_1000_requests": 1002.0,
       "l1_hit_rate_pct": 0.0,
-      "redis_commands_per_1000_requests": 0.2
+      "redis_commands_per_1000_requests": 0.1
     },
     {
       "case": "cold_l1_cold_l2",
       "requests": 20000,
       "distinct_keys_requested": 3464,
-      "mysql_selects": 3496,
-      "redis_commands": 8549,
-      "l1_hits": 14933,
-      "l1_misses": 5067,
+      "mysql_selects": 3493,
+      "redis_commands": 8553,
+      "l1_hits": 14928,
+      "l1_misses": 5072,
       "non_200": [],
-      "served_by_l2": 1571,
-      "db_reads_per_1000_requests": 174.8,
-      "l1_hit_rate_pct": 74.67,
-      "redis_commands_per_1000_requests": 427.4
+      "served_by_l2": 1579,
+      "db_reads_per_1000_requests": 174.7,
+      "l1_hit_rate_pct": 74.64,
+      "redis_commands_per_1000_requests": 427.6
     },
     {
       "case": "warm_l1_warm_l2",
       "requests": 20000,
       "distinct_keys_requested": 3464,
       "mysql_selects": 1,
-      "redis_commands": 2093,
-      "l1_hits": 17910,
-      "l1_misses": 2090,
+      "redis_commands": 3070,
+      "l1_hits": 16933,
+      "l1_misses": 3067,
       "non_200": [],
-      "served_by_l2": 2089,
+      "served_by_l2": 3066,
       "db_reads_per_1000_requests": 0.1,
-      "l1_hit_rate_pct": 89.55,
-      "redis_commands_per_1000_requests": 104.7
+      "l1_hit_rate_pct": 84.67,
+      "redis_commands_per_1000_requests": 153.5
     },
     {
       "case": "cold_l1_warm_l2",
       "requests": 20000,
       "distinct_keys_requested": 3464,
       "mysql_selects": 1,
-      "redis_commands": 5083,
-      "l1_hits": 14920,
-      "l1_misses": 5080,
+      "redis_commands": 5054,
+      "l1_hits": 14949,
+      "l1_misses": 5051,
       "non_200": [],
-      "served_by_l2": 5079,
+      "served_by_l2": 5050,
       "db_reads_per_1000_requests": 0.1,
-      "l1_hit_rate_pct": 74.6,
-      "redis_commands_per_1000_requests": 254.2
+      "l1_hit_rate_pct": 74.75,
+      "redis_commands_per_1000_requests": 252.7
     }
   ],
   "db_read_reduction_pct": {
-    "cold_l1_cold_l2": 82.55,
+    "cold_l1_cold_l2": 82.57,
     "warm_l1_warm_l2": 100.0,
     "cold_l1_warm_l2": 100.0
   }
