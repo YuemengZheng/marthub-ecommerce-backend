@@ -13,9 +13,15 @@ import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.data.redis.core.ValueOperations;
 import org.springframework.scheduling.TaskScheduler;
 
+import org.springframework.transaction.support.TransactionSynchronization;
+import org.springframework.transaction.support.TransactionSynchronizationManager;
+
 import java.time.Duration;
 import java.time.Instant;
+import java.util.HashSet;
+import java.util.List;
 import java.util.Optional;
+import java.util.Set;
 
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.*;
@@ -124,7 +130,10 @@ class ShopServiceTest {
     }
 
     @Test
-    void aWriteEvictsBothTiersImmediatelyAndSchedulesASecondEviction() {
+    void aWriteWithNoTransactionToHookEvictsImmediatelyRatherThanNotAtAll() {
+        // No transaction is active here, so there is nothing to defer to. Evicting now is
+        // worse than after a commit but far better than skipping the eviction and leaving
+        // both tiers stale until their TTLs run out.
         service.update(SHOP);
 
         verify(repo).update(SHOP);
@@ -145,5 +154,54 @@ class ShopServiceTest {
         verify(l1).invalidate(1L);
         verify(redis).delete("shop:1");
         verify(redis).convertAndSend(CacheInvalidationListener.CHANNEL, "1");
+    }
+
+    @Test
+    void aWriteInsideATransactionEvictsNothingUntilTheCommitLands() {
+        TransactionSynchronizationManager.initSynchronization();
+        try {
+            service.update(SHOP);
+
+            // The row is written, but nothing is evicted yet. An eviction at this point would
+            // land before the commit, and a concurrent read could then miss both tiers, load
+            // the uncommitted row, and write that stale value straight back in.
+            verify(repo).update(SHOP);
+            verify(bloom).addShop(1L);
+            verify(l1, never()).invalidate(anyLong());
+            verify(redis, never()).delete(anyString());
+            verify(redis, never()).convertAndSend(anyString(), any());
+            verify(scheduler, never()).schedule(any(Runnable.class), any(Instant.class));
+
+            List<TransactionSynchronization> registered =
+                    TransactionSynchronizationManager.getSynchronizations();
+            assertEquals(1, registered.size());
+            registered.forEach(TransactionSynchronization::afterCommit);
+
+            verify(l1).invalidate(1L);
+            verify(redis).delete("shop:1");
+            verify(redis).convertAndSend(CacheInvalidationListener.CHANNEL, "1");
+            verify(scheduler).schedule(any(Runnable.class), any(Instant.class));
+        } finally {
+            TransactionSynchronizationManager.clearSynchronization();
+        }
+    }
+
+    @Test
+    void theL2TtlIsJitteredSoKeysWrittenTogetherDoNotExpireTogether() {
+        when(repo.findById(1L)).thenReturn(Optional.of(SHOP));
+
+        int writes = 200;
+        for (int i = 0; i < writes; i++) service.get(1L);
+
+        ArgumentCaptor<Duration> ttl = ArgumentCaptor.forClass(Duration.class);
+        verify(values, times(writes)).set(eq("shop:1"), anyString(), ttl.capture());
+
+        Set<Duration> distinct = new HashSet<>(ttl.getAllValues());
+        for (Duration d : distinct) {
+            assertTrue(d.getSeconds() >= 600 && d.getSeconds() <= 720, "ttl out of range: " + d);
+        }
+        // A fixed TTL is the failure this guards against: 200 draws collapsing to one value
+        // would mean every key written in a warmup loop still expires in the same instant.
+        assertTrue(distinct.size() > 1, "expected jittered TTLs, every write used " + distinct);
     }
 }

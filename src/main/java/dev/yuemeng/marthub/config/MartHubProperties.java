@@ -17,10 +17,15 @@ public class MartHubProperties {
     public Benchmark getBenchmark() { return benchmark; }
     public static class Auth { private long ttlMinutes=30; public long getTtlMinutes(){return ttlMinutes;} public void setTtlMinutes(long v){ttlMinutes=v;} }
     public static class Cache {
-        private long l1MaxSize=10000, l1TtlSeconds=300, l2TtlSeconds=600, delayedEvictionMs=500;
+        // l1TtlSeconds is deliberately short: cross-instance L1 invalidation rides on Redis
+        // pub/sub, which is fire-and-forget, so TTL -- not the broadcast -- is what bounds how
+        // long a missed instance can serve stale data. Hot keys are read every second, so a
+        // 10s TTL costs almost no hit rate.
+        private long l1MaxSize=10000, l1TtlSeconds=10, l2TtlSeconds=600, l2TtlJitterSeconds=120, delayedEvictionMs=500;
         public long getL1MaxSize(){return l1MaxSize;} public void setL1MaxSize(long v){l1MaxSize=v;}
         public long getL1TtlSeconds(){return l1TtlSeconds;} public void setL1TtlSeconds(long v){l1TtlSeconds=v;}
         public long getL2TtlSeconds(){return l2TtlSeconds;} public void setL2TtlSeconds(long v){l2TtlSeconds=v;}
+        public long getL2TtlJitterSeconds(){return l2TtlJitterSeconds;} public void setL2TtlJitterSeconds(long v){l2TtlJitterSeconds=v;}
         public long getDelayedEvictionMs(){return delayedEvictionMs;} public void setDelayedEvictionMs(long v){delayedEvictionMs=v;}
     }
     public static class FlashSale {

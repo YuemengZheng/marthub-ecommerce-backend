@@ -34,8 +34,14 @@ marthub:
     ttl-minutes: 30
   cache:
     l1-max-size: 10000
-    l1-ttl-seconds: 300
+    # Short on purpose: cross-instance L1 invalidation rides on Redis pub/sub, which is
+    # fire-and-forget, so this TTL -- not the broadcast -- bounds how long an instance that
+    # missed the message can serve stale data.
+    l1-ttl-seconds: 10
     l2-ttl-seconds: 600
+    # Spread expiries so keys created together (warmup, post-deploy refill burst) do not all
+    # miss at the same instant.
+    l2-ttl-jitter-seconds: 120
     delayed-eviction-ms: 500
   flash-sale:
     token-ttl-seconds: 300
