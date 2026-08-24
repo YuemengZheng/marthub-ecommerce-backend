@@ -33,6 +33,7 @@ class EligibilityGateLuaTest {
     private static final long ITEM = 101L;
 
     private StringRedisTemplate redis;
+    private JdbcTemplate jdbc;
     private EligibilityService eligibility;
 
     @BeforeEach
@@ -40,7 +41,7 @@ class EligibilityGateLuaTest {
         redis = RedisTestSupport.connect();
 
         // Stock comes from MySQL; only the gate arithmetic is under test here.
-        JdbcTemplate jdbc = mock(JdbcTemplate.class);
+        jdbc = mock(JdbcTemplate.class);
         when(jdbc.queryForObject(anyString(), eq(Integer.class), any())).thenReturn(2);
 
         MartHubProperties props = new MartHubProperties();
@@ -136,5 +137,22 @@ class EligibilityGateLuaTest {
         BadRequestException e = assertThrows(BadRequestException.class,
                 () -> eligibility.issue(501L, buyer));
         assertEquals("ALREADY_BOUGHT", e.code());
+    }
+
+    @Test
+    void afterASellOutTheUnthrottledEntranceStopsReachingTheDatabase() {
+        eligibility.markSoldOut(ITEM);
+
+        BadRequestException e = assertThrows(BadRequestException.class,
+                () -> eligibility.issue(ITEM, new SessionUser(2L, "LoadTest")));
+
+        assertEquals("SOLD_OUT", e.code());
+        // Token issuance has no bucket in front of it, so this is the one endpoint where a
+        // post-sell-out retry storm arrives at full strength. One Redis key lookup answers it.
+        verifyNoInteractions(jdbc);
+        assertTrue(eligibility.soldOut(ITEM));
+
+        eligibility.clearSoldOut(ITEM);
+        assertFalse(eligibility.soldOut(ITEM));
     }
 }

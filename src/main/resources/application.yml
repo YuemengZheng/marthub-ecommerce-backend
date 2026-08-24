@@ -57,5 +57,6 @@ marthub:
     gate-multiplier: 5
     rate-per-second: ${FLASH_RATE_PER_SECOND:200}
     burst-capacity: ${FLASH_BURST_CAPACITY:200}
+    sold-out-ttl-hours: 6
   benchmark:
     enabled: ${BENCHMARK_ENABLED:false}

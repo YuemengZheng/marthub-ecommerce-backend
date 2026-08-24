@@ -40,16 +40,20 @@ public class MartHubProperties {
     public static class FlashSale {
         private long tokenTtlSeconds=300; private int gateMultiplier=5; private double ratePerSecond=200; private int burstCapacity=200;
         // Per-user bucket, checked before the per-item one. Without it a single user holding a
-        // valid token can drain the shared per-item bucket and starve everyone else -- the token
-        // stays valid on a SOLD_OUT retry, because markBought only runs after a successful order.
+        // valid token can drain the shared per-item bucket and starve everyone else.
         // 5/s is loose for a human clicking and tight for a script.
         private double userRatePerSecond=5; private int userBurstCapacity=5;
+        // How long a sell-out is remembered. It is a cached fact, so this bounds the damage if an
+        // item is ever restocked without the flag being cleared; a sale that has ended does not
+        // reopen, so hours rather than seconds.
+        private long soldOutTtlHours=6;
         public long getTokenTtlSeconds(){return tokenTtlSeconds;} public void setTokenTtlSeconds(long v){tokenTtlSeconds=v;}
         public int getGateMultiplier(){return gateMultiplier;} public void setGateMultiplier(int v){gateMultiplier=v;}
         public double getRatePerSecond(){return ratePerSecond;} public void setRatePerSecond(double v){ratePerSecond=v;}
         public int getBurstCapacity(){return burstCapacity;} public void setBurstCapacity(int v){burstCapacity=v;}
         public double getUserRatePerSecond(){return userRatePerSecond;} public void setUserRatePerSecond(double v){userRatePerSecond=v;}
         public int getUserBurstCapacity(){return userBurstCapacity;} public void setUserBurstCapacity(int v){userBurstCapacity=v;}
+        public long getSoldOutTtlHours(){return soldOutTtlHours;} public void setSoldOutTtlHours(long v){soldOutTtlHours=v;}
     }
     public static class Benchmark { private boolean enabled=false; public boolean isEnabled(){return enabled;} public void setEnabled(boolean v){enabled=v;} }
 }

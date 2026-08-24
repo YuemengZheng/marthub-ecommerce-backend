@@ -2,6 +2,7 @@ package dev.yuemeng.marthub.benchmark;
 
 import dev.yuemeng.marthub.auth.SessionUser;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
+import dev.yuemeng.marthub.flashsale.EligibilityService;
 import dev.yuemeng.marthub.flashsale.FlashSaleMetrics;
 import dev.yuemeng.marthub.flashsale.FlashSaleService;
 import dev.yuemeng.marthub.flashsale.OrderService;
@@ -32,10 +33,12 @@ public class BenchmarkController {
     private final OrderService orders;
     private final FlashSaleService flashSales;
     private final RedisRateLimiter limiter;
+    private final EligibilityService eligibility;
     private final Cache<Long, Shop> l1;
 
     public BenchmarkController(ShopService shops, FlashSaleMetrics metrics,
                                OrderService orders, FlashSaleService flashSales, RedisRateLimiter limiter,
+                               EligibilityService eligibility,
                                Cache<Long, Shop> l1) {
         this.l1 = l1;
         this.shops = shops;
@@ -43,6 +46,7 @@ public class BenchmarkController {
         this.orders = orders;
         this.flashSales = flashSales;
         this.limiter = limiter;
+        this.eligibility = eligibility;
     }
 
     /**
@@ -84,6 +88,9 @@ public class BenchmarkController {
     public void resetRate(@RequestParam long itemId, @RequestParam(required = false) Long userId) {
         limiter.reset(itemId);
         if (userId != null) limiter.resetUser(itemId, userId);
+        // A sell-out recorded by an earlier run would otherwise short-circuit the next one before
+        // it measured anything.
+        eligibility.clearSoldOut(itemId);
         metrics.reset();
     }
 

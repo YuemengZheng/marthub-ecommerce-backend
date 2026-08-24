@@ -2,6 +2,7 @@ package dev.yuemeng.marthub.flashsale;
 
 import dev.yuemeng.marthub.auth.SessionUser;
 import dev.yuemeng.marthub.common.BadRequestException;
+import org.springframework.dao.DuplicateKeyException;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
@@ -38,6 +39,51 @@ class FlashSaleServiceTest {
         // rejected by the per-user gate for the wrong reason.
         when(limiter.allowUser(anyLong(), anyLong())).thenReturn(true);
         when(limiter.allow(anyLong())).thenReturn(true);
+    }
+
+    @Test
+    void aFinishedSaleIsRefusedBeforeAnythingElseIsAsked() {
+        when(eligibility.soldOut(ITEM)).thenReturn(true);
+
+        BadRequestException e = assertThrows(BadRequestException.class,
+                () -> service.placeOrder(ITEM, USER, "a-perfectly-valid-token"));
+
+        // The reason matters as much as the refusal: a caller told RATE_LIMITED will back off and
+        // try again, and a caller told SOLD_OUT has no reason to come back at all.
+        assertEquals("SOLD_OUT", e.code());
+        verifyNoInteractions(orders);
+        // And it is refused for free -- no token lookup, neither bucket, no row lock.
+        verify(eligibility, never()).valid(anyLong(), anyLong(), anyString());
+        verifyNoInteractions(limiter);
+    }
+
+    @Test
+    void theFirstCallerToFindStockGoneIsTheLastToPayForIt() {
+        when(eligibility.soldOut(ITEM)).thenReturn(false);
+        when(eligibility.valid(ITEM, USER.id(), "valid")).thenReturn(true);
+        when(orders.create(ITEM, USER.id())).thenThrow(new BadRequestException("SOLD_OUT", "sold out"));
+
+        assertThrows(BadRequestException.class, () -> service.placeOrder(ITEM, USER, "valid"));
+
+        // Someone has to discover the sell-out at the database. Writing it down is what stops
+        // everyone behind them discovering it the same expensive way.
+        verify(eligibility).markSoldOut(ITEM);
+        verify(eligibility, never()).markBought(anyLong(), anyLong());
+    }
+
+    @Test
+    void aDoubleBuyDoesNotCloseTheSaleForEveryoneElse() {
+        when(eligibility.soldOut(ITEM)).thenReturn(false);
+        when(eligibility.valid(ITEM, USER.id(), "valid")).thenReturn(true);
+        // The unique-constraint backstop: this user already has an order, but stock may well remain.
+        when(orders.create(ITEM, USER.id())).thenThrow(new DuplicateKeyException("uq_user_item"));
+
+        assertThrows(DuplicateKeyException.class, () -> service.placeOrder(ITEM, USER, "valid"));
+
+        // Marking the item sold out here would turn one user's duplicate into an outage for the
+        // remaining stock -- which is why the catch is narrowed to the sell-out code, not to
+        // whatever the order path happens to throw.
+        verify(eligibility, never()).markSoldOut(anyLong());
     }
 
     @Test
