@@ -1,5 +1,6 @@
 package dev.yuemeng.marthub.common;
 
+import org.springframework.dao.QueryTimeoutException;
 import org.springframework.data.redis.RedisConnectionFailureException;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
@@ -26,6 +27,23 @@ public class ApiExceptionHandler {
      */
     @ExceptionHandler(RedisConnectionFailureException.class)
     ResponseEntity<ApiError> redisUnavailable(RedisConnectionFailureException e) {
+        return unavailable();
+    }
+
+    /**
+     * The failure mode the connection exception does not cover, and the more common one in
+     * production: the pool is healthy and Redis simply stops answering. Spring translates a
+     * command timeout on an established connection to {@link QueryTimeoutException}, not to a
+     * connection failure -- a probe against a real server confirmed the split rather than us
+     * inferring it from the class hierarchy. Without this mapping that case surfaced as a 500,
+     * so "Redis is slow" was indistinguishable from a bug in the logs.
+     */
+    @ExceptionHandler(QueryTimeoutException.class)
+    ResponseEntity<ApiError> redisTooSlow(QueryTimeoutException e) {
+        return unavailable();
+    }
+
+    private ResponseEntity<ApiError> unavailable() {
         return ResponseEntity.status(HttpStatus.SERVICE_UNAVAILABLE)
                 .header(HttpHeaders.RETRY_AFTER, "1")
                 .body(new ApiError("DEPENDENCY_UNAVAILABLE", "cache unavailable, retry shortly"));

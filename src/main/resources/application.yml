@@ -16,7 +16,12 @@ spring:
     redis:
       host: ${REDIS_HOST:localhost}
       port: ${REDIS_PORT:6379}
-      timeout: 2s
+      # Fail fast. A cache lookup that takes seconds has already lost its purpose, and a slow
+      # Redis is worse than a dead one: every request parks a Tomcat thread for the whole
+      # timeout. With Spring Session on Redis too that is every authenticated request, so a 2s
+      # timeout could park the entire pool and take down endpoints that never touch the cache.
+      # A normal hit is sub-millisecond; 200ms is already hundreds of times that.
+      timeout: 200ms
   sql:
     init:
       mode: always
