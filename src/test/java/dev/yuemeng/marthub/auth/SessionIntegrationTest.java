@@ -18,6 +18,8 @@ import org.springframework.context.ConfigurableApplicationContext;
 import org.springframework.context.annotation.Import;
 import org.springframework.http.*;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.client.HttpStatusCodeException;
 import org.springframework.web.client.RestClient;
@@ -45,12 +47,19 @@ class SessionIntegrationTest {
             DataSourceAutoConfiguration.class, DataSourceTransactionManagerAutoConfiguration.class})
     @EnableConfigurationProperties(MartHubProperties.class)
     @Import({SecurityConfig.class, AuthController.class, AbsoluteSessionLifetimeFilter.class})
-    static class SessionOnlyApp {
+    public static class SessionOnlyApp {
         @RestController
         static class ProtectedProbe {
             /** A route nobody remembered to configure. Default-deny has to cover it anyway. */
             @GetMapping("/api/some/route/added/later")
             Map<String, String> later() { return Map.of("reached", "yes"); }
+
+            /** Stands in for the catalogue: reading is public, writing is not. */
+            @GetMapping("/api/shops/{id}")
+            Map<String, Object> read(@PathVariable long id) { return Map.of("id", id); }
+
+            @PutMapping("/api/shops/{id}")
+            Map<String, Object> write(@PathVariable long id) { return Map.of("updated", id); }
         }
     }
 
@@ -110,6 +119,16 @@ class SessionIntegrationTest {
         }
     }
 
+    private static int put(String baseUrl, String path, String token) {
+        try {
+            RestClient.RequestHeadersSpec<?> spec = RestClient.create().put().uri(baseUrl + path);
+            if (token != null) spec = spec.header("X-Auth-Token", token);
+            return spec.retrieve().toBodilessEntity().getStatusCode().value();
+        } catch (HttpStatusCodeException e) {
+            return e.getStatusCode().value();
+        }
+    }
+
     private static int post(String baseUrl, String path, String token) {
         try {
             RestClient.RequestHeadersSpec<?> spec = RestClient.create().post().uri(baseUrl + path);
@@ -127,6 +146,15 @@ class SessionIntegrationTest {
         // a 401, which someone notices, instead of an open endpoint, which nobody does.
         assertEquals(401, get(urlA, "/api/some/route/added/later", null));
         assertEquals(401, get(urlA, "/api/auth/me", null));
+    }
+
+    @Test
+    void readingTheCatalogueNeedsNoSessionButWritingToItDoes() {
+        // Requiring a session to look at a product was inherited, not decided: the read path never
+        // consults the caller. It also failed reads the local cache could have served, because the
+        // session lookup runs in a filter ahead of the cache. Scoped to GET so the write stays shut.
+        assertEquals(200, get(urlA, "/api/shops/7", null), "browsing is public");
+        assertEquals(401, put(urlA, "/api/shops/7", null), "changing the catalogue is not");
     }
 
     @Test

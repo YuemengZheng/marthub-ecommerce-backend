@@ -68,28 +68,17 @@ class RedisFailureModeTest {
 
     @EnabledIf("dev.yuemeng.marthub.support.RedisTestSupport#redisAvailable")
     @Test
-    void aStallOnAnEstablishedConnectionIsAQueryTimeout() throws IOException, InterruptedException {
+    void aStallOnAnEstablishedConnectionIsAQueryTimeout() throws Exception {
         StringRedisTemplate live = templateFor(RedisTestSupport.port());
         live.opsForValue().get("warmup");        // connection established and verified healthy
-        stallServer(RedisTestSupport.port());
-
-        // The production shape: the pool is fine, Redis just stops answering. This is a different
-        // exception from the two above, which is exactly why the handler needs both mappings.
-        assertThrows(QueryTimeoutException.class, () -> live.opsForValue().get("k"));
-    }
-
-    /**
-     * CLIENT PAUSE rather than DEBUG SLEEP: DEBUG is disabled by default on Redis 7.4, and a
-     * rejected DEBUG looks exactly like a healthy server -- which is how the first version of this
-     * probe reported "no exception" and nearly sent us to the wrong conclusion.
-     */
-    private static void stallServer(int port) throws IOException, InterruptedException {
-        try (Socket raw = new Socket("localhost", port)) {
-            raw.getOutputStream().write(
-                    "*4\r\n$6\r\nCLIENT\r\n$5\r\nPAUSE\r\n$3\r\n800\r\n$3\r\nALL\r\n".getBytes());
-            raw.getOutputStream().flush();
-            raw.getInputStream().read();        // wait for +OK so the pause is definitely in effect
+        RedisTestSupport.stallServer(800);
+        try {
+            // The production shape: the pool is fine, Redis just stops answering. A different
+            // exception from the two above, which is why the handler needs both mappings.
+            assertThrows(QueryTimeoutException.class, () -> live.opsForValue().get("k"));
+        } finally {
+            RedisTestSupport.resumeServer();
         }
-        Thread.sleep(20);
     }
+
 }

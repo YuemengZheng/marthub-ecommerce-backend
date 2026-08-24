@@ -51,6 +51,39 @@ public final class RedisTestSupport {
         return redis;
     }
 
+
+    /**
+     * Makes the server stop answering so a command on an established connection has to time out.
+     * CLIENT PAUSE rather than DEBUG SLEEP: DEBUG is disabled by default on Redis 7.4, and a
+     * rejected DEBUG is indistinguishable from a healthy server -- which is how the first attempt
+     * at probing this reported "no exception".
+     *
+     * <p><b>Always pair this with {@link #resumeServer()} in a finally block.</b> The pause is
+     * server-wide state that outlives the test that set it: leaving it on made the next test class
+     * fail to start its application context at all, with "Unable to connect to Redis".
+     */
+    public static void stallServer(long millis) throws Exception {
+        try (java.net.Socket raw = new java.net.Socket(host(), port())) {
+            String arg = Long.toString(millis);
+            raw.getOutputStream().write(("*4\r\n$6\r\nCLIENT\r\n$5\r\nPAUSE\r\n$"
+                    + arg.length() + "\r\n" + arg + "\r\n$3\r\nALL\r\n").getBytes());
+            raw.getOutputStream().flush();
+            raw.getInputStream().read();       // wait for +OK so the pause is definitely in effect
+        }
+        Thread.sleep(20);
+    }
+
+    /** Lifts a {@link #stallServer(long)} early, so the pause cannot leak into the next test. */
+    public static void resumeServer() {
+        try (java.net.Socket raw = new java.net.Socket(host(), port())) {
+            raw.getOutputStream().write("*2\r\n$6\r\nCLIENT\r\n$7\r\nUNPAUSE\r\n".getBytes());
+            raw.getOutputStream().flush();
+            raw.getInputStream().read();
+        } catch (Exception ignored) {
+            // Best effort: if the server is gone there is no pause left to lift either.
+        }
+    }
+
     private static String[] endpoint() {
         String configured = System.getenv("MARTHUB_TEST_REDIS");
         if (configured == null || configured.isBlank()) {

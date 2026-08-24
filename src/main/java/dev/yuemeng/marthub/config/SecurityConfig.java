@@ -1,6 +1,10 @@
 package dev.yuemeng.marthub.config;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
+import org.springframework.boot.autoconfigure.security.SecurityProperties;
+import org.springframework.boot.web.servlet.FilterRegistrationBean;
 import org.springframework.context.annotation.Bean;
+import org.springframework.http.HttpMethod;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
@@ -13,6 +17,7 @@ import org.springframework.session.web.http.HeaderHttpSessionIdResolver;
 import org.springframework.session.web.http.HttpSessionIdResolver;
 
 import dev.yuemeng.marthub.auth.AbsoluteSessionLifetimeFilter;
+import dev.yuemeng.marthub.auth.DependencyUnavailableFilter;
 
 /**
  * Session state lives in Redis so the app instances stay disposable: a session created on one
@@ -46,6 +51,19 @@ import dev.yuemeng.marthub.auth.AbsoluteSessionLifetimeFilter;
 @EnableWebSecurity
 @EnableRedisIndexedHttpSession
 public class SecurityConfig {
+
+    /**
+     * Ordered ahead of {@code springSecurityFilterChain} so it wraps it: the exceptions it
+     * translates are thrown by the security filters themselves, which is exactly where controller
+     * advice cannot see them.
+     */
+    @Bean
+    FilterRegistrationBean<DependencyUnavailableFilter> dependencyUnavailableFilter(ObjectMapper mapper) {
+        FilterRegistrationBean<DependencyUnavailableFilter> registration =
+                new FilterRegistrationBean<>(new DependencyUnavailableFilter(mapper));
+        registration.setOrder(SecurityProperties.DEFAULT_FILTER_ORDER - 1);
+        return registration;
+    }
 
     @Bean
     HttpSessionIdResolver httpSessionIdResolver() {
@@ -81,6 +99,14 @@ public class SecurityConfig {
                 .authorizeHttpRequests(auth -> auth
                         .requestMatchers("/api/auth/demo-login").permitAll()
                         .requestMatchers("/actuator/health").permitAll()
+                        // Reading the catalogue is public, writing to it is not. Requiring a
+                        // session to look at a product was inherited rather than decided: the
+                        // read path never consults the caller, and browsing is public on every
+                        // storefront. It also cost something specific -- the session lookup runs
+                        // in a filter, ahead of the cache, so a Redis outage failed reads that
+                        // the local cache could have served. Scoped to GET, so the rule stays an
+                        // explicit exception to default-deny rather than an open door.
+                        .requestMatchers(HttpMethod.GET, "/api/shops/**").permitAll()
                         // Benchmark routes are already gated by marthub.benchmark.enabled, which
                         // is false outside the benchmark compose profile: with it off the handlers
                         // do not exist at all.
