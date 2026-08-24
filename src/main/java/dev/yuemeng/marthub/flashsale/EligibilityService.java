@@ -96,20 +96,56 @@ public class EligibilityService {
     }
 
     /**
-     * Records the purchase and retires the token that authorised it.
+     * Records which order the purchase produced, so a repeat of that request can be answered with
+     * it instead of an error.
      *
-     * <p>Dropping the token is what makes the state machine mean something: a token exists exactly
-     * while another attempt is still possible. Leaving it in place let a buyer who had already
-     * succeeded keep passing admission for the rest of the token's life -- each retry spending a
-     * slot from the bucket everyone shares, taking a lock on the contended stock row, and only
-     * then failing on the unique constraint. Correct, because the constraint held, but paid for at
-     * full price and reported as a 500.
+     * <p>It stores the order id rather than a flag because the marker's job changed. As a flag all
+     * it could do was refuse; holding the id lets the first gate return the caller's own order, and
+     * a repeated request is then a replay rather than a failure -- which is what a client whose
+     * response was lost on the network actually needs.
      *
-     * <p>The bought marker outlives the token on purpose: it is what stops a fresh token being
-     * issued, so the two together say "already bought" at both entrances.
+     * <p><b>This is a cache, not the record.</b> The durable answer is a row in {@code orders}
+     * behind {@code uq_user_item}; nothing here is safe from eviction, and no {@code maxmemory} is
+     * configured. Losing this key must therefore degrade to the slow path rather than to a wrong
+     * answer, which is why the order path also resolves the id from MySQL when the constraint
+     * refuses an insert.
+     *
+     * <p>Written before the token is revoked, on purpose. Crashing between the two leaves a live
+     * token next to a recorded purchase, and the next request is answered by the first gate for
+     * free. Reversed, the same crash leaves neither, and recovery costs a row lock.
      */
-    public void markBought(long itemId, long userId) {
-        redis.opsForValue().set(boughtKey(itemId, userId), "1", java.time.Duration.ofHours(6));
+    public void markBought(long itemId, long userId, long orderId) {
+        redis.opsForValue().set(boughtKey(itemId, userId), Long.toString(orderId),
+                java.time.Duration.ofHours(6));
+    }
+
+    /**
+     * @return the order this user already has for this item, or {@code null} if Redis does not know
+     *         of one -- which is not the same as there not being one.
+     */
+    public Long boughtOrderId(long itemId, long userId) {
+        String value = redis.opsForValue().get(boughtKey(itemId, userId));
+        if (value == null) return null;
+        try {
+            return Long.parseLong(value);
+        } catch (NumberFormatException e) {
+            // A marker written by an older version held a flag, not an id. Treating that as "no
+            // fast answer" sends the request down the path that resolves the id from MySQL, so the
+            // key heals itself instead of failing the request.
+            return null;
+        }
+    }
+
+    /**
+     * Retires the token that authorised a purchase. Separate from recording the purchase because
+     * the order of the two matters and burying it inside one method hid that.
+     *
+     * <p>A token exists exactly while another attempt is still possible. Leaving it in place let a
+     * buyer who had already succeeded keep clearing admission for the rest of the token's life --
+     * each retry taking a lock on the contended stock row, only to be refused by the unique
+     * constraint.
+     */
+    public void revokeToken(long itemId, long userId) {
         redis.delete(tokenKey(itemId, userId));
     }
 

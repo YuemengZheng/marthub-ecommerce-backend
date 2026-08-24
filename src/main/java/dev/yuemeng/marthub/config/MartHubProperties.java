@@ -39,10 +39,13 @@ public class MartHubProperties {
     }
     public static class FlashSale {
         private long tokenTtlSeconds=300; private int gateMultiplier=5; private double ratePerSecond=200; private int burstCapacity=200;
-        // Per-user bucket, checked before the per-item one. Without it a single user holding a
-        // valid token can drain the shared per-item bucket and starve everyone else.
-        // 5/s is loose for a human clicking and tight for a script.
-        private double userRatePerSecond=5; private int userBurstCapacity=5;
+        // How long one user's in-flight order attempt is held. This is a correctness parameter, not
+        // a tuning knob: shorter than the worst-case duration of the order transaction and the
+        // guard stops excluding anything, while an unbounded value locks a user out for good if the
+        // JVM dies mid-attempt. It is only safe to bound because the database wait is bounded below
+        // it -- `innodb_lock_wait_timeout` is set to 3s per connection, where InnoDB's default of
+        // 50s would let a request outlive any sane lease.
+        private long processingLeaseMs=5000;
         // How long a sell-out is remembered. It is a cached fact, so this bounds the damage if an
         // item is ever restocked without the flag being cleared; a sale that has ended does not
         // reopen, so hours rather than seconds.
@@ -51,8 +54,7 @@ public class MartHubProperties {
         public int getGateMultiplier(){return gateMultiplier;} public void setGateMultiplier(int v){gateMultiplier=v;}
         public double getRatePerSecond(){return ratePerSecond;} public void setRatePerSecond(double v){ratePerSecond=v;}
         public int getBurstCapacity(){return burstCapacity;} public void setBurstCapacity(int v){burstCapacity=v;}
-        public double getUserRatePerSecond(){return userRatePerSecond;} public void setUserRatePerSecond(double v){userRatePerSecond=v;}
-        public int getUserBurstCapacity(){return userBurstCapacity;} public void setUserBurstCapacity(int v){userBurstCapacity=v;}
+        public long getProcessingLeaseMs(){return processingLeaseMs;} public void setProcessingLeaseMs(long v){processingLeaseMs=v;}
         public long getSoldOutTtlHours(){return soldOutTtlHours;} public void setSoldOutTtlHours(long v){soldOutTtlHours=v;}
     }
     public static class Benchmark { private boolean enabled=false; public boolean isEnabled(){return enabled;} public void setEnabled(boolean v){enabled=v;} }

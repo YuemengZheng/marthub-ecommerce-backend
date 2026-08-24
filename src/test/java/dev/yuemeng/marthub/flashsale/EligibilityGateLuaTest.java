@@ -106,7 +106,7 @@ class EligibilityGateLuaTest {
     void aBoughtMarkerBlocksAnotherToken() {
         SessionUser user = new SessionUser(13L, "Buyer");
         eligibility.issue(ITEM, user);
-        eligibility.markBought(ITEM, user.id());
+        eligibility.markBought(ITEM, user.id(), 7001L);
 
         BadRequestException e = assertThrows(BadRequestException.class, () -> eligibility.issue(ITEM, user));
         assertEquals("ALREADY_BOUGHT", e.code());
@@ -118,7 +118,8 @@ class EligibilityGateLuaTest {
         String token = eligibility.issue(500L, buyer);
         assertTrue(eligibility.valid(500L, buyer.id(), token), "usable before the purchase");
 
-        eligibility.markBought(500L, buyer.id());
+        eligibility.markBought(500L, buyer.id(), 7002L);
+        eligibility.revokeToken(500L, buyer.id());
 
         // Without this the buyer kept clearing admission for the rest of the token's life: a slot
         // out of the shared bucket and a lock on the contended stock row, every retry, only to
@@ -131,7 +132,8 @@ class EligibilityGateLuaTest {
     void aBuyerCannotSimplyTakeAFreshToken() {
         SessionUser buyer = new SessionUser(78L, "Buyer");
         eligibility.issue(501L, buyer);
-        eligibility.markBought(501L, buyer.id());
+        eligibility.markBought(501L, buyer.id(), 7003L);
+        eligibility.revokeToken(501L, buyer.id());
 
         // The bought marker outlives the token, which is what closes the other entrance.
         BadRequestException e = assertThrows(BadRequestException.class,

@@ -83,35 +83,6 @@ class RedisRateLimiterLuaTest {
         assertTrue(limiter.allow(4L), "item 4 has its own bucket");
     }
 
-    @Test
-    void eachUserGetsTheirOwnBucket() {
-        long itemId = 5L;
-        props.getFlashSale().setUserRatePerSecond(20);
-        props.getFlashSale().setUserBurstCapacity(1);
-        RedisRateLimiter limiter = new RedisRateLimiter(redis, props);
-        limiter.resetUser(itemId, 1L);
-        limiter.resetUser(itemId, 2L);
-
-        assertTrue(limiter.allowUser(itemId, 1L));
-        assertFalse(limiter.allowUser(itemId, 1L), "user 1's single token is spent");
-        assertTrue(limiter.allowUser(itemId, 2L), "user 2 has their own bucket");
-    }
-
-    @Test
-    void theUserBucketAndTheItemBucketAreSpentSeparately() {
-        long itemId = 6L;
-        props.getFlashSale().setRatePerSecond(20);
-        props.getFlashSale().setBurstCapacity(1);
-        props.getFlashSale().setUserRatePerSecond(20);
-        props.getFlashSale().setUserBurstCapacity(1);
-        RedisRateLimiter limiter = new RedisRateLimiter(redis, props);
-        limiter.reset(itemId);
-        limiter.resetUser(itemId, 1L);
-
-        assertTrue(limiter.allowUser(itemId, 1L), "the user bucket has a token");
-        assertTrue(limiter.allow(itemId), "spending a user token must not spend an item token");
-    }
-
     private static boolean get(Future<Boolean> f) {
         try {
             return f.get();

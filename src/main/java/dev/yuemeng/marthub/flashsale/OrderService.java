@@ -16,6 +16,20 @@ public class OrderService {
         jdbc.update("INSERT INTO orders(user_id,item_id) VALUES (?,?)",userId,itemId);
         return jdbc.queryForObject("SELECT LAST_INSERT_ID()",Long.class);
     }
+    /**
+     * The durable answer to "does this user already have an order for this item".
+     *
+     * <p>Deliberately <b>not</b> {@code @Transactional} and deliberately called from outside
+     * {@link #create}: the insert that failed decremented stock in the same transaction, so that
+     * transaction has to roll back before this runs. Catching the constraint violation inside
+     * {@code create} and committing anyway would take a unit of stock off the shelf without
+     * producing an order to match it.
+     */
+    public Long findExistingOrder(long itemId, long userId) {
+        return jdbc.query("SELECT id FROM orders WHERE user_id=? AND item_id=?",
+                rs -> rs.next() ? rs.getLong(1) : null, userId, itemId);
+    }
+
     /** Benchmark-only legacy shape: request reaches order processing before eligibility is checked. */
     public void baselineInvalidAttempt(){
         metrics.enteredOrderProcessor();

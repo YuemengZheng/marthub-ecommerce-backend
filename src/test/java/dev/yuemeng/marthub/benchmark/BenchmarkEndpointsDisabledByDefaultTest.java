@@ -2,6 +2,7 @@ package dev.yuemeng.marthub.benchmark;
 
 import com.github.benmanes.caffeine.cache.Caffeine;
 import dev.yuemeng.marthub.flashsale.EligibilityService;
+import dev.yuemeng.marthub.flashsale.ProcessingGuard;
 import dev.yuemeng.marthub.flashsale.FlashSaleMetrics;
 import dev.yuemeng.marthub.flashsale.FlashSaleService;
 import dev.yuemeng.marthub.flashsale.OrderService;
@@ -28,6 +29,7 @@ class BenchmarkEndpointsDisabledByDefaultTest {
             .withBean(FlashSaleService.class, () -> mock(FlashSaleService.class))
             .withBean(RedisRateLimiter.class, () -> mock(RedisRateLimiter.class))
             .withBean(EligibilityService.class, () -> mock(EligibilityService.class))
+            .withBean(ProcessingGuard.class, () -> mock(ProcessingGuard.class))
             .withBean(com.github.benmanes.caffeine.cache.Cache.class,
                     () -> Caffeine.newBuilder().recordStats().<Long, Shop>build())
             .withUserConfiguration(BenchmarkController.class);

@@ -23,10 +23,16 @@ public class FlashSaleController {
         return Map.of("token", service.issueToken(itemId, user));
     }
 
+    /**
+     * 200 whether the order was created now or created by an earlier request that this one repeats.
+     * {@code replayed} is how the client tells them apart; it is not an error either way, because a
+     * caller whose response was lost on the network still has an order and should be told which one.
+     */
     @PostMapping("/{itemId}/orders")
-    public Map<String,Long> order(@PathVariable long itemId,
-                                  @RequestHeader("X-Eligibility-Token") String token,
-                                  @AuthenticationPrincipal SessionUser user){
-        return Map.of("orderId", service.placeOrder(itemId, user, token));
+    public Map<String,Object> order(@PathVariable long itemId,
+                                    @RequestHeader("X-Eligibility-Token") String token,
+                                    @AuthenticationPrincipal SessionUser user){
+        OrderResult result = service.placeOrder(itemId, user, token);
+        return Map.of("orderId", result.orderId(), "replayed", result.replayed());
     }
 }

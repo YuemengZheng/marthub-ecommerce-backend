@@ -1,6 +1,7 @@
 package dev.yuemeng.marthub.common;
 
 import org.junit.jupiter.api.Test;
+import org.springframework.dao.CannotAcquireLockException;
 import org.springframework.dao.DuplicateKeyException;
 import org.springframework.dao.QueryTimeoutException;
 import org.springframework.data.redis.RedisConnectionFailureException;
@@ -33,6 +34,12 @@ class ApiExceptionHandlerContractTest {
 
         @GetMapping("/boom/duplicate")
         String alreadyBought() { throw new DuplicateKeyException("uq_user_item"); }
+
+        @GetMapping("/boom/in-progress")
+        String inFlight() { throw new ConflictException("IN_PROGRESS", "already in flight"); }
+
+        @GetMapping("/boom/lock-wait")
+        String contended() { throw new CannotAcquireLockException("lock wait timeout exceeded"); }
     }
 
     private final MockMvc mvc = MockMvcBuilders.standaloneSetup(new Failing())
@@ -65,5 +72,24 @@ class ApiExceptionHandlerContractTest {
         mvc.perform(get("/boom/duplicate"))
                 .andExpect(status().isConflict())
                 .andExpect(jsonPath("$.code").value("ALREADY_BOUGHT"));
+    }
+
+    @Test
+    void aSecondAttemptWhileOneIsInFlightIsAConflictNotABadRequest() throws Exception {
+        // 400 would tell the client to fix its request, and there is nothing to fix -- the caller's
+        // own earlier request is what is in the way.
+        mvc.perform(get("/boom/in-progress"))
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.code").value("IN_PROGRESS"));
+    }
+
+    @Test
+    void aRowLockWaitThatRunsOutIsReportedAsSomethingToRetry() throws Exception {
+        // The wait is capped at 3s per connection so the processing lease can have a bounded TTL,
+        // which means this outcome is reachable by design rather than only under disaster.
+        mvc.perform(get("/boom/lock-wait"))
+                .andExpect(status().isServiceUnavailable())
+                .andExpect(header().string(HttpHeaders.RETRY_AFTER, "1"))
+                .andExpect(jsonPath("$.code").value("CONTENDED"));
     }
 }

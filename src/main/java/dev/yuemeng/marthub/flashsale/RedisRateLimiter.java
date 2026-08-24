@@ -8,7 +8,12 @@ import org.springframework.stereotype.Component;
 import java.util.List;
 
 /**
- * Token bucket in Lua, in two layers.
+ * Token bucket in Lua. One layer: the shared budget for one item.
+ *
+ * <p>There used to be a per-user layer in front of it. It was removed because it was the wrong
+ * primitive -- see {@link ProcessingGuard}. What remains here is the only mechanism in the system
+ * that bounds <i>aggregate</i> load, which no per-user mechanism can do: ten thousand distinct
+ * callers each making one entirely legitimate attempt is exactly the case this exists for.
  *
  * <p>Refill, check and decrement have to happen without anything interleaving, so the whole
  * bucket lives in one script: Redis runs it single-threaded, which is what makes a burst of
@@ -50,22 +55,11 @@ public class RedisRateLimiter {
         this.props = props;
     }
 
-    /** Shared bucket for one item: the layer that protects the database from the whole crowd. */
+    /** Shared bucket for one item: what protects the database from the whole crowd at once. */
     public boolean allow(long itemId) {
         return consume(itemKey(itemId),
                 props.getFlashSale().getRatePerSecond(),
                 props.getFlashSale().getBurstCapacity());
-    }
-
-    /**
-     * Per-user bucket, meant to be checked first. The item bucket alone cannot tell one user
-     * hammering the endpoint apart from a crowd arriving at once, so on its own it lets a single
-     * caller spend everyone else's tokens.
-     */
-    public boolean allowUser(long itemId, long userId) {
-        return consume(userKey(itemId, userId),
-                props.getFlashSale().getUserRatePerSecond(),
-                props.getFlashSale().getUserBurstCapacity());
     }
 
     private boolean consume(String key, double rate, int capacity) {
@@ -78,11 +72,5 @@ public class RedisRateLimiter {
         redis.delete(itemKey(itemId));
     }
 
-    /** Benchmark support: clears one user's bucket for one item. */
-    public void resetUser(long itemId, long userId) {
-        redis.delete(userKey(itemId, userId));
-    }
-
     private String itemKey(long itemId) { return "fs:rate:" + itemId; }
-    private String userKey(long itemId, long userId) { return "fs:rate:u:" + itemId + ":" + userId; }
 }

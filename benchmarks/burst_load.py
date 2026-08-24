@@ -138,7 +138,7 @@ def fire(path, headers_for_request, n, needs_headers):
 
 def classify(rows):
     out = {'invalid_token_rejections': 0, 'rate_limited': 0, 'admitted': 0,
-           'rejected_after_db_work': 0, 'transport_errors': 0, 'other': {}}
+           'in_progress': 0, 'rejected_after_db_work': 0, 'transport_errors': 0, 'other': {}}
     for _, status, body, _ in rows:
         if status == 0:
             out['transport_errors'] += 1
@@ -147,15 +147,25 @@ def classify(rows):
             out['admitted'] += 1
             continue
         code = ''
-        if status == 400:
+        # 409 carries a code too now: the processing lease refuses a caller whose own earlier
+        # request is still in flight. Left uncounted it landed in `other`, which is where genuinely
+        # unexpected statuses have to stay visible.
+        if status in (400, 409):
             try:
                 code = json.loads(body or b'{}').get('code', '')
             except json.JSONDecodeError:
                 code = ''
-        if code == 'INVALID_TOKEN':
+        if code == 'IN_PROGRESS':
+            out['in_progress'] += 1
+        elif code == 'INVALID_TOKEN':
             out['invalid_token_rejections'] += 1
         elif code == 'RATE_LIMITED':
             out['rate_limited'] += 1
+        elif status == 429:
+            # Would mean the nginx per-session limit fired. /internal/benchmark is deliberately
+            # exempt from it, so a non-zero count here means the exemption is broken and the
+            # numbers below describe nginx's config rather than the application's.
+            out['other']['429:edge_limit'] = out['other'].get('429:edge_limit', 0) + 1
         elif status == 400 and not code:
             # The baseline shape: order processing ran its three SELECTs and only then could
             # say no. Counted separately because that is the work the gate exists to avoid.
@@ -191,6 +201,14 @@ def run_level(n, pool):
                                    * 100.0 / baseline['mysql_selects'], 2)
         projected_reduction = round((baseline['mysql_selects'] - projected)
                                     * 100.0 / baseline['mysql_selects'], 2)
+    # The percentage above is worth less than it looks, and worth less now than it used to be.
+    # `admitted` comes out of one token bucket, so it is rate x wall-clock + burst -- a run that
+    # takes longer admits more, and the ratio below comes out at ~0.99 every time. It therefore
+    # restates the configured capacity and the client's duration, not a property of the system.
+    # Two interacting buckets at least made it non-obvious; one does not.
+    bucket_rate = float(os.environ.get('REPORT_ITEM_RATE_NUM', '200'))
+    bucket_burst = float(os.environ.get('REPORT_ITEM_BURST_NUM', '200'))
+    predicted = bucket_rate * gated['wall_seconds'] + bucket_burst
     return {
         'offered_requests': n,
         'baseline_no_gate': baseline,
@@ -199,6 +217,14 @@ def run_level(n, pool):
         'projected_gated_selects_if_admitted_orders_run': projected,
         'projected_mysql_select_reduction_pct': projected_reduction,
         'measured_mysql_select_reduction_pct_admission_only': measured_reduction,
+        'admitted_over_bucket_prediction': round(gated['admitted'] / predicted, 3),
+        # The claim that does survive: database work stops tracking arrivals. The baseline spends a
+        # fixed number of reads per request however many arrive, so its cost is linear in load. The
+        # gated path spends what the bucket allows, so the same rise in offered load buys a smaller
+        # and smaller share of the database -- which is the actual point of the gate, and is not a
+        # restatement of its configuration.
+        'db_reads_per_offered_request_baseline': round(baseline['mysql_selects'] / n, 3),
+        'admitted_share_of_offered_pct': round(100.0 * gated['admitted'] / n, 2),
     }
 
 
@@ -243,12 +269,16 @@ def main():
             'distinct_callers': USER_POOL,
             'note': 'a fresh user id range per level, so no bucket carries state across levels',
         },
-        'limiter_config': {
+        'admission_config': {
             'source': 'FLASH_RATE_PER_SECOND / FLASH_BURST_CAPACITY on the app containers',
             'item_rate_per_second': os.environ.get('REPORT_ITEM_RATE', 'see compose'),
             'item_burst_capacity': os.environ.get('REPORT_ITEM_BURST', 'see compose'),
-            'user_rate_per_second': os.environ.get('REPORT_USER_RATE', 'default 5'),
-            'user_burst_capacity': os.environ.get('REPORT_USER_BURST', 'default 5'),
+            'per_user_bucket': 'removed -- replaced by a processing lease, and by a per-session '
+                               'limit_req zone at nginx for request rate',
+            'processing_lease_ms': 'marthub.flash-sale.processing-lease-ms, default 5000',
+            'note': 'admitted is now decided by the item bucket alone. It reads higher than the '
+                    'previous two-bucket figure because a caller at ~7 rps was being refused by a '
+                    '5/s per-user bucket, which is not what that traffic was.',
         },
         'levels': _sweep(),
     }

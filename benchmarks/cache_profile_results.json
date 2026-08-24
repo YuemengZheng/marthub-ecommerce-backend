@@ -1,5 +1,5 @@
 {
-  "measured_at_utc": "2026-08-24T20:36:33Z",
+  "measured_at_utc": "2026-08-24T21:09:02Z",
   "base_url": "http://localhost:8390",
   "instances_polled": [
     "http://localhost:8391",
@@ -53,47 +53,47 @@
       "case": "cold_l1_cold_l2",
       "requests": 20000,
       "distinct_keys_requested": 3464,
-      "mysql_selects": 3496,
-      "redis_commands": 8514,
-      "l1_hits": 14966,
-      "l1_misses": 5034,
+      "mysql_selects": 3498,
+      "redis_commands": 8536,
+      "l1_hits": 14945,
+      "l1_misses": 5055,
       "non_200": [],
-      "served_by_l2": 1538,
-      "db_reads_per_1000_requests": 174.8,
-      "l1_hit_rate_pct": 74.83,
-      "redis_commands_per_1000_requests": 425.7
+      "served_by_l2": 1557,
+      "db_reads_per_1000_requests": 174.9,
+      "l1_hit_rate_pct": 74.72,
+      "redis_commands_per_1000_requests": 426.8
     },
     {
       "case": "warm_l1_warm_l2",
       "requests": 20000,
       "distinct_keys_requested": 3464,
       "mysql_selects": 1,
-      "redis_commands": 3060,
-      "l1_hits": 16943,
-      "l1_misses": 3057,
+      "redis_commands": 3263,
+      "l1_hits": 16741,
+      "l1_misses": 3259,
       "non_200": [],
-      "served_by_l2": 3056,
+      "served_by_l2": 3258,
       "db_reads_per_1000_requests": 0.1,
-      "l1_hit_rate_pct": 84.72,
-      "redis_commands_per_1000_requests": 153.0
+      "l1_hit_rate_pct": 83.7,
+      "redis_commands_per_1000_requests": 163.2
     },
     {
       "case": "cold_l1_warm_l2",
       "requests": 20000,
       "distinct_keys_requested": 3464,
       "mysql_selects": 1,
-      "redis_commands": 5053,
-      "l1_hits": 14950,
-      "l1_misses": 5050,
+      "redis_commands": 5040,
+      "l1_hits": 14969,
+      "l1_misses": 5031,
       "non_200": [],
-      "served_by_l2": 5049,
+      "served_by_l2": 5030,
       "db_reads_per_1000_requests": 0.1,
-      "l1_hit_rate_pct": 74.75,
-      "redis_commands_per_1000_requests": 252.7
+      "l1_hit_rate_pct": 74.84,
+      "redis_commands_per_1000_requests": 252.0
     }
   ],
   "db_read_reduction_pct": {
-    "cold_l1_cold_l2": 82.55,
+    "cold_l1_cold_l2": 82.54,
     "warm_l1_warm_l2": 100.0,
     "cold_l1_warm_l2": 100.0
   }

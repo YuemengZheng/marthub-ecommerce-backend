@@ -1,5 +1,6 @@
 package dev.yuemeng.marthub.common;
 
+import org.springframework.dao.CannotAcquireLockException;
 import org.springframework.dao.DuplicateKeyException;
 import org.springframework.dao.QueryTimeoutException;
 import org.springframework.data.redis.RedisConnectionFailureException;
@@ -45,16 +46,40 @@ public class ApiExceptionHandler {
     }
 
     /**
-     * The last line of defence against buying the same item twice, and it has to exist: retiring
-     * the token closes the ordinary path, but two requests can still clear admission together
-     * before either has committed, and then the unique constraint decides which one wins. That is
-     * the constraint doing its job, not the server breaking, so it is a 409 rather than the 500 it
-     * used to be.
+     * The residue after the order path has had its turn. A constraint violation is normally resolved
+     * there -- the row is read back and the caller gets their real order id with a 200 -- so this
+     * only fires when the id could not be recovered, which means the constraint refused something
+     * other than a duplicate order. Still the constraint doing its job rather than the server
+     * breaking, hence 409 and not the 500 it used to be.
      */
     @ExceptionHandler(DuplicateKeyException.class)
     ResponseEntity<ApiError> alreadyBought(DuplicateKeyException e) {
         return ResponseEntity.status(HttpStatus.CONFLICT)
                 .body(new ApiError("ALREADY_BOUGHT", "already purchased"));
+    }
+
+    /**
+     * The caller already has an attempt in flight. Not a malformed request -- there is nothing for
+     * the client to fix -- and not a rate limit either, so it gets the status that says "this
+     * collides with state that already exists".
+     */
+    @ExceptionHandler(ConflictException.class)
+    ResponseEntity<ApiError> conflict(ConflictException e) {
+        return ResponseEntity.status(HttpStatus.CONFLICT).body(new ApiError(e.code(), e.getMessage()));
+    }
+
+    /**
+     * MySQL error 1205, a row-lock wait that ran out. It exists as a visible outcome because the
+     * wait is deliberately capped at 3s per connection: the processing lease can only be given a
+     * bounded TTL if the transaction it covers cannot outlive it, and InnoDB's default 50s wait
+     * would let exactly that happen. So this is contention being reported rather than absorbed, and
+     * the honest answer is "come back", not "your request was wrong".
+     */
+    @ExceptionHandler(CannotAcquireLockException.class)
+    ResponseEntity<ApiError> contended(CannotAcquireLockException e) {
+        return ResponseEntity.status(HttpStatus.SERVICE_UNAVAILABLE)
+                .header(HttpHeaders.RETRY_AFTER, "1")
+                .body(new ApiError("CONTENDED", "too much contention on this item, retry shortly"));
     }
 
     private ResponseEntity<ApiError> unavailable() {

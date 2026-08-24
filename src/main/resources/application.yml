@@ -11,6 +11,11 @@ spring:
     password: ${DB_PASSWORD:marthub}
     hikari:
       maximum-pool-size: 20
+      # InnoDB waits 50s for a row lock by default. Every seckill order contends for the same stock
+      # row, so that default lets a single request outlive any processing lease worth setting -- and
+      # the lease can only have a bounded TTL if the work it covers cannot outlast it. Capped per
+      # connection; a wait that runs out surfaces as 503 CONTENDED rather than as a stuck thread.
+      connection-init-sql: SET SESSION innodb_lock_wait_timeout = 3
       minimum-idle: 2
   data:
     redis:
@@ -58,5 +63,6 @@ marthub:
     rate-per-second: ${FLASH_RATE_PER_SECOND:200}
     burst-capacity: ${FLASH_BURST_CAPACITY:200}
     sold-out-ttl-hours: 6
+    processing-lease-ms: 5000
   benchmark:
     enabled: ${BENCHMARK_ENABLED:false}

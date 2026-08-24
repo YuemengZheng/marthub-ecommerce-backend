@@ -87,7 +87,8 @@ public class BenchmarkController {
     @PostMapping("/flash-sale/rate/reset")
     public void resetRate(@RequestParam long itemId, @RequestParam(required = false) Long userId) {
         limiter.reset(itemId);
-        if (userId != null) limiter.resetUser(itemId, userId);
+        // The per-user bucket is gone; the processing lease that replaced it expires on its own,
+        // so there is nothing per-user left to reset here.
         // A sell-out recorded by an earlier run would otherwise short-circuit the next one before
         // it measured anything.
         eligibility.clearSoldOut(itemId);
