@@ -1,5 +1,6 @@
 package dev.yuemeng.marthub.common;
 
+import org.springframework.dao.DuplicateKeyException;
 import org.springframework.dao.QueryTimeoutException;
 import org.springframework.data.redis.RedisConnectionFailureException;
 import org.springframework.http.HttpHeaders;
@@ -41,6 +42,19 @@ public class ApiExceptionHandler {
     @ExceptionHandler(QueryTimeoutException.class)
     ResponseEntity<ApiError> redisTooSlow(QueryTimeoutException e) {
         return unavailable();
+    }
+
+    /**
+     * The last line of defence against buying the same item twice, and it has to exist: retiring
+     * the token closes the ordinary path, but two requests can still clear admission together
+     * before either has committed, and then the unique constraint decides which one wins. That is
+     * the constraint doing its job, not the server breaking, so it is a 409 rather than the 500 it
+     * used to be.
+     */
+    @ExceptionHandler(DuplicateKeyException.class)
+    ResponseEntity<ApiError> alreadyBought(DuplicateKeyException e) {
+        return ResponseEntity.status(HttpStatus.CONFLICT)
+                .body(new ApiError("ALREADY_BOUGHT", "already purchased"));
     }
 
     private ResponseEntity<ApiError> unavailable() {

@@ -110,4 +110,31 @@ class EligibilityGateLuaTest {
         BadRequestException e = assertThrows(BadRequestException.class, () -> eligibility.issue(ITEM, user));
         assertEquals("ALREADY_BOUGHT", e.code());
     }
+
+    @Test
+    void buyingRetiresTheTokenSoARetryIsRefusedAtTheFirstGate() {
+        SessionUser buyer = new SessionUser(77L, "Buyer");
+        String token = eligibility.issue(500L, buyer);
+        assertTrue(eligibility.valid(500L, buyer.id(), token), "usable before the purchase");
+
+        eligibility.markBought(500L, buyer.id());
+
+        // Without this the buyer kept clearing admission for the rest of the token's life: a slot
+        // out of the shared bucket and a lock on the contended stock row, every retry, only to
+        // fail on the unique constraint at the end.
+        assertFalse(eligibility.valid(500L, buyer.id(), token),
+                "a purchase that succeeded must not leave a usable token behind");
+    }
+
+    @Test
+    void aBuyerCannotSimplyTakeAFreshToken() {
+        SessionUser buyer = new SessionUser(78L, "Buyer");
+        eligibility.issue(501L, buyer);
+        eligibility.markBought(501L, buyer.id());
+
+        // The bought marker outlives the token, which is what closes the other entrance.
+        BadRequestException e = assertThrows(BadRequestException.class,
+                () -> eligibility.issue(501L, buyer));
+        assertEquals("ALREADY_BOUGHT", e.code());
+    }
 }

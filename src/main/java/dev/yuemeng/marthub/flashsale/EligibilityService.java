@@ -78,8 +78,22 @@ public class EligibilityService {
         return expected != null && expected.equals(token);
     }
 
+    /**
+     * Records the purchase and retires the token that authorised it.
+     *
+     * <p>Dropping the token is what makes the state machine mean something: a token exists exactly
+     * while another attempt is still possible. Leaving it in place let a buyer who had already
+     * succeeded keep passing admission for the rest of the token's life -- each retry spending a
+     * slot from the bucket everyone shares, taking a lock on the contended stock row, and only
+     * then failing on the unique constraint. Correct, because the constraint held, but paid for at
+     * full price and reported as a 500.
+     *
+     * <p>The bought marker outlives the token on purpose: it is what stops a fresh token being
+     * issued, so the two together say "already bought" at both entrances.
+     */
     public void markBought(long itemId, long userId) {
         redis.opsForValue().set(boughtKey(itemId, userId), "1", java.time.Duration.ofHours(6));
+        redis.delete(tokenKey(itemId, userId));
     }
 
     private String tokenKey(long item, long user) { return "fs:eligibility:" + item + ":" + user; }

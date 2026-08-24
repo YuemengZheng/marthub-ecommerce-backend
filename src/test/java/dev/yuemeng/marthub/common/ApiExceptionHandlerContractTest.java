@@ -1,6 +1,7 @@
 package dev.yuemeng.marthub.common;
 
 import org.junit.jupiter.api.Test;
+import org.springframework.dao.DuplicateKeyException;
 import org.springframework.dao.QueryTimeoutException;
 import org.springframework.data.redis.RedisConnectionFailureException;
 import org.springframework.http.HttpHeaders;
@@ -13,14 +14,14 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
 
 /**
- * "What does a caller see when Redis is unavailable" is a contract, and it was being left to
- * inference. Both failure modes have to read as a dependency being down rather than as a bug: a
- * 500 sends an operator looking at the code, which is the wrong place.
+ * What a caller sees for each failure the application can produce. These were being left to
+ * inference, and inference had them wrong: everything that was not a bad request came back as a
+ * 500, which sends an operator looking at the code even when the code is fine.
  *
- * <p>Which exception belongs to which failure mode is pinned separately by
+ * <p>Which exception belongs to which Redis failure mode is pinned separately by
  * {@code RedisFailureModeTest}. This test only fixes what each one turns into.
  */
-class RedisUnavailableContractTest {
+class ApiExceptionHandlerContractTest {
 
     @RestController
     static class Failing {
@@ -29,6 +30,9 @@ class RedisUnavailableContractTest {
 
         @GetMapping("/boom/timeout")
         String stalled() { throw new QueryTimeoutException("too slow"); }
+
+        @GetMapping("/boom/duplicate")
+        String alreadyBought() { throw new DuplicateKeyException("uq_user_item"); }
     }
 
     private final MockMvc mvc = MockMvcBuilders.standaloneSetup(new Failing())
@@ -51,5 +55,15 @@ class RedisUnavailableContractTest {
                 .andExpect(status().isServiceUnavailable())
                 .andExpect(header().string(HttpHeaders.RETRY_AFTER, "1"))
                 .andExpect(jsonPath("$.code").value("DEPENDENCY_UNAVAILABLE"));
+    }
+
+    @Test
+    void buyingTheSameItemTwiceIsAConflictNotAServerError() throws Exception {
+        // Retiring the token closes the ordinary path, but two requests can still clear admission
+        // together and let the unique constraint pick a winner. The loser is a conflict: the
+        // constraint did its job, so nothing here is the server malfunctioning.
+        mvc.perform(get("/boom/duplicate"))
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.code").value("ALREADY_BOUGHT"));
     }
 }
