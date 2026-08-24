@@ -29,7 +29,7 @@ import java.util.Map;
 import static org.junit.jupiter.api.Assertions.*;
 
 /**
- * What the resume bullet claims, as tests.
+ * The claim that sessions live in Redis rather than in a JVM, as tests.
  *
  * <p>Two application contexts run at once against one Redis. That is the whole point: it is the
  * only way to show the session belongs to Redis rather than to whichever JVM created it, which is
