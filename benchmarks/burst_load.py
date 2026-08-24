@@ -35,7 +35,8 @@ import urllib.error
 import urllib.request
 from pathlib import Path
 
-BASE = os.environ.get('MARTHUB_BASE_URL', 'http://localhost:8390').rstrip('/')
+# Nginx as the committed compose file publishes it. Override for a remapped stack.
+BASE = os.environ.get('MARTHUB_BASE_URL', 'http://localhost:8080').rstrip('/')
 MYSQL_CONTAINER = os.environ.get('MARTHUB_MYSQL_CONTAINER', 'marthub-mysql-1')
 REDIS_CONTAINER = os.environ.get('MARTHUB_REDIS_CONTAINER', 'marthub-redis-1')
 ITEM_ID = 101

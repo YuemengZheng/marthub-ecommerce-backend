@@ -11,9 +11,12 @@ The subtraction is not exact -- three different handlers serialise different bod
 these are stage costs to an order of magnitude, not to a decimal place. That is enough to
 answer which stage is worth optimising, which is the only question being asked.
 """
-import json, statistics, time, urllib.request, urllib.error
+import json, os, statistics, time, urllib.request, urllib.error
 
-BASE = "http://localhost:8391"
+# One instance directly, NOT Nginx: the edge rate limit would throttle a tight
+# measurement loop and the numbers would describe limit_req instead. Requires the
+# app containers to be published -- see the README on the local override.
+BASE = os.environ.get("MARTHUB_INSTANCE_URL", "http://localhost:8091")
 N, WARM = 400, 60
 
 def call(method, path, headers=None, want=(200, 204)):

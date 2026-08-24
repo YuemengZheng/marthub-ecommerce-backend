@@ -1,5 +1,5 @@
 {
-  "measured_at_utc": "2026-08-24T21:09:02Z",
+  "measured_at_utc": "2026-08-24T23:23:27Z",
   "base_url": "http://localhost:8390",
   "instances_polled": [
     "http://localhost:8391",
@@ -39,62 +39,86 @@
       "case": "db_only",
       "requests": 20000,
       "distinct_keys_requested": 3464,
-      "mysql_selects": 20039,
-      "redis_commands": 3,
+      "mysql_selects": 20045,
+      "redis_commands": 4,
       "l1_hits": 0,
       "l1_misses": 0,
       "non_200": [],
       "served_by_l2": 0,
-      "db_reads_per_1000_requests": 1002.0,
+      "db_reads_per_1000_requests": 1002.2,
       "l1_hit_rate_pct": 0.0,
-      "redis_commands_per_1000_requests": 0.1
+      "redis_commands_per_1000_requests": 0.2
     },
     {
       "case": "cold_l1_cold_l2",
       "requests": 20000,
       "distinct_keys_requested": 3464,
-      "mysql_selects": 3498,
-      "redis_commands": 8536,
-      "l1_hits": 14945,
-      "l1_misses": 5055,
+      "mysql_selects": 3493,
+      "redis_commands": 8534,
+      "l1_hits": 14953,
+      "l1_misses": 5047,
       "non_200": [],
-      "served_by_l2": 1557,
-      "db_reads_per_1000_requests": 174.9,
-      "l1_hit_rate_pct": 74.72,
-      "redis_commands_per_1000_requests": 426.8
+      "served_by_l2": 1554,
+      "db_reads_per_1000_requests": 174.7,
+      "l1_hit_rate_pct": 74.77,
+      "redis_commands_per_1000_requests": 426.7
     },
     {
       "case": "warm_l1_warm_l2",
       "requests": 20000,
       "distinct_keys_requested": 3464,
       "mysql_selects": 1,
-      "redis_commands": 3263,
-      "l1_hits": 16741,
-      "l1_misses": 3259,
+      "redis_commands": 3101,
+      "l1_hits": 16902,
+      "l1_misses": 3098,
       "non_200": [],
-      "served_by_l2": 3258,
+      "served_by_l2": 3097,
       "db_reads_per_1000_requests": 0.1,
-      "l1_hit_rate_pct": 83.7,
-      "redis_commands_per_1000_requests": 163.2
+      "l1_hit_rate_pct": 84.51,
+      "redis_commands_per_1000_requests": 155.1
     },
     {
       "case": "cold_l1_warm_l2",
       "requests": 20000,
       "distinct_keys_requested": 3464,
       "mysql_selects": 1,
-      "redis_commands": 5040,
-      "l1_hits": 14969,
-      "l1_misses": 5031,
+      "redis_commands": 5074,
+      "l1_hits": 14930,
+      "l1_misses": 5070,
       "non_200": [],
-      "served_by_l2": 5030,
+      "served_by_l2": 5069,
       "db_reads_per_1000_requests": 0.1,
-      "l1_hit_rate_pct": 74.84,
-      "redis_commands_per_1000_requests": 252.0
+      "l1_hit_rate_pct": 74.65,
+      "redis_commands_per_1000_requests": 253.7
+    },
+    {
+      "case": "absent_id_bloom_filter",
+      "requests": 2000,
+      "distinct_keys_requested": 2000,
+      "mysql_selects": 2,
+      "redis_commands": 3,
+      "l1_hits": 0,
+      "l1_misses": 1,
+      "non_200": [
+        400
+      ],
+      "served_by_l2": 0,
+      "db_reads_per_1000_requests": 1.0,
+      "l1_hit_rate_pct": 0.0,
+      "redis_commands_per_1000_requests": 1.5
     }
   ],
   "db_read_reduction_pct": {
-    "cold_l1_cold_l2": 82.54,
+    "cold_l1_cold_l2": 82.57,
     "warm_l1_warm_l2": 100.0,
     "cold_l1_warm_l2": 100.0
+  },
+  "absent_id_bloom_filter": {
+    "requests": 2000,
+    "mysql_selects": 2,
+    "statuses_other_than_200": [
+      400
+    ],
+    "caveat": "no negative caching: the filter false-positive rate (~1%) means some absent ids reach MySQL on every request indefinitely"
   }
 }

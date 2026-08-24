@@ -1,16 +1,19 @@
 #!/usr/bin/env python3
 """Profile the cache under a hot-key distribution instead of a single key.
 
-`db_load.py` reads one shop id 2,000 times. That proves the tiers are wired up, but
-it cannot produce a meaningful hit rate: hammering one key makes any cache look
-perfect, and "99.9% hit rate" invites the only question that matters — what was the
-key distribution? This script answers that question up front.
+This replaced a script that read one shop id 2,000 times. That version proved the
+tiers were wired up but could not produce a meaningful hit rate: hammering one key
+makes any cache look perfect, and "99.9% hit rate" invites the only question that
+matters — what was the key distribution? Worse, its headline number was 2,000, which
+was the loop bound, so the measurement restated its own parameter. This script states
+the distribution up front and reports numbers that do not come from its own config.
 
 10,000 shops, Zipf-distributed reads (a few very hot ids, a long tail), so a cold
 miss on first touch is part of the workload rather than something the benchmark
 arranges away. Three numbers come out, all from counters this process does not own:
 
-* MySQL `Com_select` — database reads the cache removed
+* MySQL `Com_select` — database reads the cache removed (and, for absent ids, the
+  reads the Bloom filter removed before either cache was consulted)
 * Caffeine `stats()` — L1 hits, i.e. reads that never reached Redis either
 * Redis `total_commands_processed` — the L2 traffic that survived L1
 
@@ -20,7 +23,7 @@ starting state (it flushes Redis and restarts the app containers between cases),
 because "hit rate" means nothing without saying what was warm when the clock started.
 
     MARTHUB_BASE_URL=http://localhost:8080 \
-    MARTHUB_INSTANCE_URLS=http://localhost:8081,http://localhost:8082,http://localhost:8083 \
+    MARTHUB_INSTANCE_URLS=http://localhost:8091,http://localhost:8092,http://localhost:8093 \
     python3 benchmarks/cache_profile.py
 """
 import concurrent.futures
@@ -33,7 +36,10 @@ import urllib.error
 import urllib.request
 from pathlib import Path
 
-BASE = os.environ.get('MARTHUB_BASE_URL', 'http://localhost:8091').rstrip('/')
+# Load goes through Nginx so it spreads over all three instances; INSTANCES is the
+# separate list of the instances themselves, needed because Caffeine counters are
+# per-process and have to be summed.
+BASE = os.environ.get('MARTHUB_BASE_URL', 'http://localhost:8080').rstrip('/')
 # When load goes through the load balancer, Caffeine stats have to be summed over
 # every instance -- each one keeps its own. Set this to the per-instance URLs.
 INSTANCES = [u.strip().rstrip('/') for u in
@@ -186,6 +192,17 @@ def main():
     restart_instances()
     rows.append(profile('cold_l1_warm_l2', cached, keys))
 
+    # Ids that were never in the table. Folded in from a separate script that used to
+    # own this measurement, because it is the same question -- how much database work
+    # did a tier remove -- and the answer is only meaningful next to the others.
+    #
+    # The filter sits ahead of both caches, so the expected cost is zero reads and
+    # every response a 400. Note what this does NOT show: the ~1% of absent ids that
+    # the filter lets through will reach MySQL on every single request, forever, and
+    # a run of 2,000 ids is far too small to expect one. There is no negative caching.
+    absent = [SHOPS + 1 + i for i in range(2000)]
+    rows.append(profile('absent_id_bloom_filter', cached, absent))
+
     baseline = rows[0]['mysql_selects']
     result = {
         'measured_at_utc': time.strftime('%Y-%m-%dT%H:%M:%SZ', time.gmtime()),
@@ -199,9 +216,19 @@ def main():
             'top_5_keys_by_request_count': hottest,
         },
         'cases': rows,
+        # Only the cases that ran the same Zipf workload are comparable to the baseline.
+        # The Bloom case drives a different key set, so a "reduction vs baseline" figure
+        # for it would divide two unrelated numbers.
         'db_read_reduction_pct': {
             r['case']: round((baseline - r['mysql_selects']) * 100 / baseline, 2)
-            for r in rows[1:]
+            for r in rows[1:] if r['case'] != 'absent_id_bloom_filter'
+        },
+        'absent_id_bloom_filter': {
+            'requests': next(r['requests'] for r in rows if r['case'] == 'absent_id_bloom_filter'),
+            'mysql_selects': next(r['mysql_selects'] for r in rows if r['case'] == 'absent_id_bloom_filter'),
+            'statuses_other_than_200': next(r['non_200'] for r in rows if r['case'] == 'absent_id_bloom_filter'),
+            'caveat': 'no negative caching: the filter false-positive rate (~1%) means some '
+                      'absent ids reach MySQL on every request indefinitely',
         },
     }
     Path(__file__).with_name('cache_profile_results.json').write_text(
