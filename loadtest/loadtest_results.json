@@ -1,0 +1,310 @@
+{
+  "measured_at_utc": "2026-08-25T05:27:58Z",
+  "environment": {
+    "host": "MacBook, 12 logical cores, 24GB; Docker Desktop VM 12 CPU / 7.75GB",
+    "caveat": "load generator, application, database and cache all share one machine. These numbers describe this configuration, not a production deployment.",
+    "cpu_limits": {
+      "app1-3": "2.0 each",
+      "mysql": "2.0",
+      "redis": "1.0",
+      "nginx": "1.0",
+      "k6": "3.0"
+    },
+    "app_instances": 3,
+    "hikari_pool_per_instance": 20,
+    "tomcat_max_threads_per_instance": "200 (default)",
+    "innodb_lock_wait_timeout": "5s",
+    "jvm": "-Xmx512m -XX:+UseG1GC",
+    "method": "open-loop constant-arrival-rate; every level preceded by a 25s warm-up and a state reset"
+  },
+  "harness_ceiling": {
+    "note": "nginx-served endpoint, no JVM. Establishes what any number below can mean.",
+    "clean_to_rps": 10000,
+    "dropped_iterations_appear_at": 15000,
+    "nginx_max_observed_rps": 28266
+  },
+  "ramp_hot_single_item": {
+    "200": {
+      "achieved_rps": 200.0,
+      "p50_ms": 2.6,
+      "p95_ms": 6.1,
+      "p99_ms": 128.9,
+      "orders_created": 4001,
+      "replayed": 0,
+      "rejected": 0,
+      "errors": 0,
+      "dropped_iterations": 0,
+      "mysql_commits_per_s": 106,
+      "mysql_threads_connected_peak": 23,
+      "mysql_threads_running_peak": 2,
+      "innodb_row_lock_waits_delta": 0,
+      "container_cpu_peak_pct": {
+        "app1": 129.0,
+        "app2": 111.0,
+        "app3": 104.0,
+        "mysql": 19.0,
+        "nginx": 4.0,
+        "redis": 10.0
+      }
+    },
+    "500": {
+      "achieved_rps": 500.0,
+      "p50_ms": 2.4,
+      "p95_ms": 11.5,
+      "p99_ms": 34.3,
+      "orders_created": 10001,
+      "replayed": 0,
+      "rejected": 0,
+      "errors": 0,
+      "dropped_iterations": 0,
+      "mysql_commits_per_s": 251,
+      "mysql_threads_connected_peak": 31,
+      "mysql_threads_running_peak": 10,
+      "innodb_row_lock_waits_delta": 652,
+      "container_cpu_peak_pct": {
+        "app1": 65.0,
+        "app2": 62.0,
+        "app3": 69.0,
+        "mysql": 28.0,
+        "nginx": 7.0,
+        "redis": 24.0
+      }
+    },
+    "600": {
+      "achieved_rps": 600.0,
+      "p50_ms": 3.4,
+      "p95_ms": 38.6,
+      "p99_ms": 126.8,
+      "orders_created": 12001,
+      "replayed": 0,
+      "rejected": 0,
+      "errors": 0,
+      "dropped_iterations": 0,
+      "mysql_commits_per_s": 599,
+      "mysql_threads_connected_peak": 61,
+      "mysql_threads_running_peak": 9,
+      "innodb_row_lock_waits_delta": 2080,
+      "container_cpu_peak_pct": {
+        "app1": 97.0,
+        "app2": 99.0,
+        "app3": 89.0,
+        "mysql": 51.0,
+        "nginx": 10.0,
+        "redis": 35.0
+      }
+    },
+    "700": {
+      "achieved_rps": 699.0,
+      "p50_ms": 12.9,
+      "p95_ms": 288.1,
+      "p99_ms": 304.2,
+      "orders_created": 14001,
+      "replayed": 0,
+      "rejected": 0,
+      "errors": 0,
+      "dropped_iterations": 0,
+      "mysql_commits_per_s": 692,
+      "mysql_threads_connected_peak": 61,
+      "mysql_threads_running_peak": 60,
+      "innodb_row_lock_waits_delta": 6424,
+      "container_cpu_peak_pct": {
+        "app1": 102.0,
+        "app2": 95.0,
+        "app3": 106.0,
+        "mysql": 50.0,
+        "nginx": 11.0,
+        "redis": 39.0
+      }
+    },
+    "800": {
+      "achieved_rps": 749.0,
+      "p50_ms": 293.2,
+      "p95_ms": 1244.0,
+      "p99_ms": 1369.6,
+      "orders_created": 16001,
+      "replayed": 0,
+      "rejected": 0,
+      "errors": 0,
+      "dropped_iterations": 0,
+      "mysql_commits_per_s": 754,
+      "mysql_threads_connected_peak": 62,
+      "mysql_threads_running_peak": 62,
+      "innodb_row_lock_waits_delta": 9534,
+      "container_cpu_peak_pct": {
+        "app1": 100.0,
+        "app2": 93.0,
+        "app3": 96.0,
+        "mysql": 49.0,
+        "nginx": 12.0,
+        "redis": 39.0
+      }
+    },
+    "900": {
+      "achieved_rps": 707.0,
+      "p50_ms": 2230.9,
+      "p95_ms": 5153.2,
+      "p99_ms": 5275.0,
+      "orders_created": 17798,
+      "replayed": 0,
+      "rejected": 0,
+      "errors": 0,
+      "dropped_iterations": 202,
+      "mysql_commits_per_s": 710,
+      "mysql_threads_connected_peak": 61,
+      "mysql_threads_running_peak": 62,
+      "innodb_row_lock_waits_delta": 9176,
+      "container_cpu_peak_pct": {
+        "app1": 104.0,
+        "app2": 105.0,
+        "app3": 105.0,
+        "mysql": 51.0,
+        "nginx": 15.0,
+        "redis": 39.0
+      }
+    }
+  },
+  "ramp_spread_500_items": {
+    "800": {
+      "achieved_rps": 800.0,
+      "p50_ms": 5.3,
+      "p95_ms": 10.8,
+      "p99_ms": 18.3,
+      "orders_created": 16001,
+      "replayed": 0,
+      "rejected": 0,
+      "errors": 0,
+      "dropped_iterations": 0,
+      "mysql_commits_per_s": 799,
+      "mysql_threads_connected_peak": 37,
+      "mysql_threads_running_peak": 4,
+      "innodb_row_lock_waits_delta": 0,
+      "container_cpu_peak_pct": {
+        "app1": 134.0,
+        "app2": 135.0,
+        "app3": 135.0,
+        "mysql": 51.0,
+        "nginx": 12.0,
+        "redis": 38.0
+      }
+    },
+    "1200": {
+      "achieved_rps": 1199.0,
+      "p50_ms": 10.3,
+      "p95_ms": 1000.0,
+      "p99_ms": 1286.9,
+      "orders_created": 24001,
+      "replayed": 0,
+      "rejected": 0,
+      "errors": 0,
+      "dropped_iterations": 0,
+      "mysql_commits_per_s": 1201,
+      "mysql_threads_connected_peak": 61,
+      "mysql_threads_running_peak": 8,
+      "innodb_row_lock_waits_delta": 88,
+      "container_cpu_peak_pct": {
+        "app1": 191.0,
+        "app2": 185.0,
+        "app3": 204.0,
+        "mysql": 98.0,
+        "nginx": 44.0,
+        "redis": 45.0
+      }
+    }
+  },
+  "connection_pool_experiment_800rps_hot": {
+    "pool_60": {
+      "achieved_rps": 682.0,
+      "p50_ms": 1495.2,
+      "p95_ms": 3225.3,
+      "p99_ms": 3443.6,
+      "orders_created": 16001,
+      "replayed": 0,
+      "rejected": 0,
+      "errors": 0,
+      "dropped_iterations": 0,
+      "mysql_commits_per_s": 704,
+      "mysql_threads_connected_peak": 61,
+      "mysql_threads_running_peak": 62,
+      "innodb_row_lock_waits_delta": 11562,
+      "container_cpu_peak_pct": {
+        "app1": 119.0,
+        "app2": 114.0,
+        "app3": 109.0,
+        "mysql": 47.0,
+        "nginx": 12.0,
+        "redis": 35.0
+      }
+    },
+    "pool_150": {
+      "achieved_rps": 655.0,
+      "p50_ms": 2362.6,
+      "p95_ms": 4334.1,
+      "p99_ms": 4406.1,
+      "orders_created": 16001,
+      "replayed": 0,
+      "rejected": 0,
+      "errors": 0,
+      "dropped_iterations": 0,
+      "mysql_commits_per_s": 637,
+      "mysql_threads_connected_peak": 151,
+      "mysql_threads_running_peak": 152,
+      "innodb_row_lock_waits_delta": 10423,
+      "container_cpu_peak_pct": {
+        "app1": 102.0,
+        "app2": 105.0,
+        "app3": 113.0,
+        "mysql": 50.0,
+        "nginx": 13.0,
+        "redis": 36.0
+      }
+    }
+  },
+  "admission_ab_2000rps_hot": {
+    "limiter_off": {
+      "achieved_rps": 1520.0,
+      "p50_ms": 0.2,
+      "p95_ms": 7972.5,
+      "p99_ms": 8232.5,
+      "orders_created": 14668,
+      "replayed": 0,
+      "rejected": 0,
+      "errors": 25332,
+      "dropped_iterations": 0,
+      "mysql_commits_per_s": 534,
+      "mysql_threads_connected_peak": 61,
+      "mysql_threads_running_peak": 62,
+      "innodb_row_lock_waits_delta": 9175,
+      "container_cpu_peak_pct": {
+        "app1": 103.0,
+        "app2": 110.0,
+        "app3": 97.0,
+        "mysql": 51.0,
+        "nginx": 17.0,
+        "redis": 35.0
+      }
+    },
+    "limiter_200_per_s": {
+      "achieved_rps": 1999.0,
+      "p50_ms": 3.3,
+      "p95_ms": 15.6,
+      "p99_ms": 93.7,
+      "orders_created": 4185,
+      "replayed": 0,
+      "rejected": 35816,
+      "errors": 0,
+      "dropped_iterations": 0,
+      "mysql_commits_per_s": 199,
+      "mysql_threads_connected_peak": 61,
+      "mysql_threads_running_peak": 3,
+      "innodb_row_lock_waits_delta": 66,
+      "container_cpu_peak_pct": {
+        "app1": 183.0,
+        "app2": 174.0,
+        "app3": 209.0,
+        "mysql": 21.0,
+        "nginx": 28.0,
+        "redis": 58.0
+      }
+    }
+  }
+}

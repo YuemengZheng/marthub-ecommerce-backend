@@ -297,10 +297,48 @@ between 82.5% and 82.6%, the L1 hit rates by a few tenths, and the stage deltas 
 0.1 ms — the ordering has been stable across every run, the third decimal place has not.
 Re-run the scripts rather than trusting the numbers copied here.
 
+## Where it saturates
+
+Measured with an open-loop harness whose own ceiling was established first (clean to 10,000 RPS, so
+it is not the limit in anything below). Three application instances at 2 CPU each, MySQL at 2, Redis
+at 1 — all on one laptop, so these are numbers for this configuration rather than a claim about
+production. Full method, tables and the mistakes that were caught in [`loadtest/`](loadtest/).
+
+**The order path sustains about 600 RPS at p95 under 40 ms with no errors.** Past 800 the achieved
+rate falls while latency climbs — goodput collapse rather than a plateau.
+
+**Nothing is CPU-bound at that knee.** MySQL sits at about half its limit, Redis at a third, the
+application instances at roughly half. What pegs is `Threads_running` at 62 against a 60-connection
+pool: every connection is in the database, waiting on the same inventory row.
+
+Two experiments separate cause from symptom. Raising the pool from 60 to 150 connections bought no
+throughput and cost 58% more latency — the pool is a queue in front of the bottleneck. Spreading the
+same 800 RPS over 500 items, changing nothing else, moves p95 from 3,225 ms to 11 ms with zero lock
+waits. **The bottleneck is row-lock serialisation on the hot inventory row** (average wait 105 ms).
+That says what would help — Redis inventory reservation with asynchronous settlement — and what
+would not: more connections, more instances, or a bigger database.
+
+**What the admission layer is worth**, at 2,000 RPS into a path that can absorb 600:
+
+| | Limiter off | Limiter at 200/s |
+| --- | --- | --- |
+| Achieved | 1,520/s | **1,999/s** |
+| p95 | 7,972 ms | **16 ms** |
+| Failed | **63.3%** | **0%** |
+| `Threads_running` | 62 | **3** |
+
+**Correctness under burst is separate and holds at every size tested.** 100 / 500 / 1,000 / 5,000 /
+10,000 buyers released together against 100 units each produced exactly 100 orders, 100 distinct
+buyers, zero stock remaining and zero errors.
+
 ## Open items
 
 Known and deliberate, in the order they actually matter.
 
+0. **Row-lock serialisation on the hot inventory row caps the order path** at roughly 600 RPS in
+   this configuration, and no amount of connections, instances or database CPU moves it. Redis
+   inventory reservation with asynchronous settlement is the change that would; it is not
+   implemented, and it trades away the synchronous "your order exists" response.
 1. **Redis is a single failure domain carrying eight roles** — sessions, L2 cache,
    invalidation pub/sub, eligibility tokens, the gate counter, bought markers, sold-out
    flags, rate-limit buckets — with no replica, no `maxmemory`, no eviction policy, no

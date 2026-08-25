@@ -1,0 +1,49 @@
+# Load-test topology. Not for normal development.
+#
+# Explicit CPU limits exist so "which component saturated first" is answerable. Without them every
+# container competes for the same 12 cores and a saturation point cannot be attributed to anything
+# -- the answer would always be "the laptop".
+#
+# Budget, out of the 12 CPUs Docker Desktop exposes:
+#   app1-3  2.0 each = 6.0     the thing under test
+#   mysql   2.0               synchronous writes on one hot row
+#   redis   1.0               single-threaded anyway, so more would not help
+#   nginx   0.5
+#   k6      2.0               run separately, capped so it cannot starve the app
+#                             -- and measured, so harness saturation is visible
+services:
+  mysql:
+    deploy:
+      resources:
+        limits: {cpus: '2.0', memory: 1200M}
+    command: >-
+      --innodb-lock-wait-timeout=5
+      --max-connections=500
+      --innodb-buffer-pool-size=512M
+  redis:
+    deploy:
+      resources:
+        limits: {cpus: '1.0', memory: 700M}
+    # A benchmark that silently starts evicting is measuring something else. Fail loudly instead.
+    command: redis-server --maxmemory 512mb --maxmemory-policy noeviction --save ""
+  app1: &appres
+    deploy:
+      resources:
+        limits: {cpus: '2.0', memory: 900M}
+    environment:
+      JAVA_TOOL_OPTIONS: "-Xmx512m -XX:+UseG1GC"
+      # The per-item bucket is deliberately opened up for the capacity ramp. Left at its normal
+      # 200/s the ramp would measure the limiter -- admitted volume would be rate x duration, which
+      # is already known and says nothing about what the order path can sustain. The A/B run puts
+      # it back to show what it is worth.
+      FLASH_RATE_PER_SECOND: "200"
+      FLASH_BURST_CAPACITY: "200"
+      SPRING_DATASOURCE_HIKARI_MAXIMUM_POOL_SIZE: "${HIKARI:-20}"
+  app2: *appres
+  app3: *appres
+  nginx:
+    deploy:
+      resources:
+        limits: {cpus: '1.0', memory: 200M}
+    volumes:
+      - ./infra/nginx-bench.conf:/etc/nginx/nginx.conf:ro
