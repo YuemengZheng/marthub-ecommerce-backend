@@ -153,6 +153,50 @@ class OverSellConcurrencyTest {
     }
 
     /**
+     * The scale quoted outside this repository, so CI protects the exact claim rather than a
+     * neighbouring one. Small stock and a hundred times as many buyers is the shape a real sale
+     * has: almost every arrival must be refused, and the few that succeed must total exactly the
+     * stock.
+     */
+    @Test
+    void aHundredUnitsAgainstTenThousandBuyersProducesExactlyAHundredOrders() throws Exception {
+        int stock = 100, buyers = 10_000;
+        MySqlTestSupport.resetFixture(jdbc, ITEM, stock);
+
+        AtomicInteger sold = new AtomicInteger(), soldOut = new AtomicInteger();
+        CountDownLatch start = new CountDownLatch(1);
+        ExecutorService pool = Executors.newFixedThreadPool(THREADS);
+        try {
+            List<Callable<Void>> attempts = IntStream.range(0, buyers)
+                    .<Callable<Void>>mapToObj(i -> () -> {
+                        start.await();
+                        try {
+                            orders.create(ITEM, 5_000_000L + i);
+                            sold.incrementAndGet();
+                        } catch (BadRequestException e) {
+                            if ("SOLD_OUT".equals(e.code())) soldOut.incrementAndGet(); else throw e;
+                        }
+                        return null;
+                    }).toList();
+            List<Future<Void>> futures = attempts.stream().map(pool::submit).toList();
+            start.countDown();
+            for (Future<Void> f : futures) f.get();
+        } finally {
+            pool.shutdownNow();
+        }
+
+        int rows = jdbc.queryForObject("SELECT COUNT(*) FROM orders", Integer.class);
+        int distinct = jdbc.queryForObject("SELECT COUNT(DISTINCT user_id) FROM orders", Integer.class);
+        System.out.printf("oversell: stock=%d buyers=%d -> sold=%d sold_out=%d rows=%d remaining=%d%n",
+                stock, buyers, sold.get(), soldOut.get(), rows, stockNow());
+
+        assertEquals(stock, rows, "exactly one order per unit");
+        assertEquals(stock, distinct, "no buyer got two units");
+        assertEquals(0, stockNow(), "every unit was sold");
+        assertEquals(buyers, sold.get() + soldOut.get(), "every attempt reached a verdict");
+    }
+
+    /**
      * The failed insert must take the stock decrement with it. Without a transaction around the
      * two statements, a unique-constraint violation leaves a unit deducted with no order behind
      * it -- stock quietly leaks, and the shortfall only shows up when the sale ends early.
