@@ -179,10 +179,11 @@ curl http://localhost:8080/api/shops/1
 
 ```bash
 docker run --rm -d -p 6379:6379 redis:7.4-alpine
+docker run --rm -d -p 3399:3306 -e MYSQL_ROOT_PASSWORD=root -e MYSQL_DATABASE=marthub mysql:8.4
 mvn test
 ```
 
-73 tests. Most are plain unit tests with no infrastructure, but the eligibility gate,
+75 tests. Most are plain unit tests with no infrastructure, but the eligibility gate,
 the token bucket and the processing lease are Lua scripts, and a mocked
 `StringRedisTemplate` cannot say anything about whether a script is atomic — so those
 run against a real Redis, with real threads. `EligibilityGateLuaTest` fires 64
@@ -191,11 +192,21 @@ exactly one gate slot is spent; `ProcessingGuardLuaTest` fires 32 and asserts th
 exactly one is admitted, and that a holder whose lease has expired cannot release the
 next holder's.
 
-Without a reachable Redis the Redis-dependent tests skip rather than fail, so `mvn test`
-still passes on a machine without Docker. CI supplies Redis as a service container and
-then fails the build if anything was skipped, so the skip cannot quietly become
-permanent. Set `MARTHUB_TEST_REDIS=host:port` to point them somewhere other than
-`localhost:6379`.
+Overselling gets the same treatment for the same reason. It is a race between two
+statements inside InnoDB, so a mocked `JdbcTemplate` would pass against the very
+implementation the test exists to rule out. `OverSellConcurrencyTest` releases 50,000
+buyers at 5,000 units through a real transaction manager and asserts that exactly 5,000
+orders exist, that stock finished at zero, and that no buyer holds two — then a second
+case asserts that a constraint violation returns its unit to the shelf rather than
+leaking it.
+
+Without a reachable server the dependent tests skip rather than fail, so `mvn test` still
+passes on a machine without Docker. CI supplies both Redis and MySQL as service containers
+and then fails the build if anything was skipped, so the skip cannot quietly become
+permanent. Point them elsewhere with `MARTHUB_TEST_REDIS=host:port` and
+`MARTHUB_TEST_MYSQL=host:port`; the MySQL default is **3399**, not 3306, because a default
+port is how a test suite ends up dropping tables in whatever database happened to be
+running.
 
 ## Benchmarks
 
@@ -308,8 +319,10 @@ Known and deliberate, in the order they actually matter.
 5. **Rejections are not counted by reason.** `SOLD_OUT`, `INVALID_TOKEN`, `IN_PROGRESS`,
    `RATE_LIMITED` and `CONTENDED` are distinct in the response but share one counter, so
    a rising rejection rate does not say which of them rose.
-6. **No concurrency test for overselling.** The conditional `UPDATE` and `uq_user_item`
-   are exercised, but "N buyers, M units, exactly M orders" is not asserted.
+6. ~~No concurrency test for overselling.~~ **Closed.** `OverSellConcurrencyTest` releases
+   50,000 buyers at 5,000 units against a real MySQL and asserts exactly 5,000 orders, stock
+   at zero, and no buyer holding two. Verified to fail against the read-then-write it rules
+   out: that produced 5,063 orders and a stock column at -63.
 7. **Token issuance still reads MySQL** on every call for a live item, with no bucket in
    front of it inside the application.
 

@@ -82,6 +82,20 @@ the thing the command count was standing in for. It found the session stage cost
 than the whole admission chain (+1.29 ms vs +0.86 ms at p50), and that both are around a
 millisecond, which is why neither has been restructured.
 
+## The one claim measurement supported
+
+Not everything here got worse under a microscope. **Overselling** was asserted only by reading
+the SQL until 2026-08-24, when it got a real test: 50,000 buyers released at 5,000 units against
+a real MySQL, through a real transaction manager, all with distinct user ids so the unique
+constraint cannot mask a miscount.
+
+Result: **exactly 5,000 orders, stock at zero, no buyer with two, no lock-wait timeouts.**
+
+What makes that worth stating is the control. The same test run against a read-then-write —
+`SELECT stock`, check it, then `UPDATE` — produced **5,063 orders for 5,000 units** and left the
+stock column at **-63**. At 1,000 units it was 1,031 and -31. So the test does discriminate
+between the two implementations, which is the only thing that makes a green run mean anything.
+
 ## Bugs found by measuring, not by reading
 
 - `BloomFilterRegistry.reload()` **did not compile** — the lambda passed to
