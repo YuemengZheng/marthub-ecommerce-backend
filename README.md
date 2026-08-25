@@ -259,6 +259,13 @@ costs at most one database read" — so it is near the ceiling for this workload
 tuning result. And restarting every instance costs the database nothing, which is the
 one case that justifies the second tier existing at all.
 
+The gap between the two matters as much as the closeness. **3,493 reads against 3,464
+distinct keys means 29 keys were loaded more than once**, which is what a concurrent cold
+miss looks like: nothing serialises three instances that miss both tiers for the same key
+at the same moment. So the shared L2 reduces duplicate loads rather than eliminating them
+— about 0.8% got through here — and closing that gap would need single-flight or a
+per-key lock, which is not implemented.
+
 **`burst_load.py`** offers 1,000 / 5,000 / 10,000 requests at concurrency 200, 30% of
 them carrying tokens that were never issued, from 500 distinct callers.
 
